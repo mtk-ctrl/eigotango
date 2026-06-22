@@ -1,5 +1,6 @@
 import type { Word } from '@/types/database'
 import type { SpellingResult } from '@/types/api'
+import { SpeakButton } from './SpeakButton'
 
 interface Props {
   word: Word
@@ -29,10 +30,11 @@ export function ResultCard({ word, result, onNext, isLast }: Props) {
           </p>
         )}
 
-        <p className="text-3xl font-bold tracking-wide">{word.word}</p>
+        <p className="text-3xl font-bold tracking-wide mb-3">{word.word}</p>
         {word.reading && (
-          <p className="text-gray-500 text-sm mt-1">{word.reading}</p>
+          <p className="text-gray-500 text-sm mb-3">{word.reading}</p>
         )}
+        <SpeakButton word={word.word} />
       </div>
 
       {word.example_en && (
