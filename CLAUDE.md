@@ -91,3 +91,73 @@ LIFF 内 Stripe Checkout → stripe-webhook → subscriptions 更新
 ## ペアリング方式
 6桁コード方式: 親がダッシュボードでコード生成 → 子どもが LIFF 上で入力。
 `student_parent_relations.pairing_code` に保存（24時間有効）。
+
+---
+
+## 開発ルール（AI自動化の大原則）
+
+### オーナー作業は最小化する
+オーナーが手動でやるのは **物理的に不可能な初回登録だけ**:
+- (a) APIキー等の秘密情報の初回登録（GitHub Secrets / Cloudflare環境変数への貼り付け）
+- (b) Stripe の商品・価格の管理画面設定（APIでは価格作成後の変更不可のため）
+- (c) LINE Developers / Supabase の初回プロジェクト作成（UIのみ）
+
+それ以外は **AI が全部やる**。「ダッシュボードで○○して」と言う前に必ずAPIを探す。
+
+### デプロイ・反映はすべて push → CI の一本道
+
+| 変更対象 | トリガー | 自動処理 | 検証 |
+|---|---|---|---|
+| `src/` (フロント) | main へ push | Cloudflare Pages 自動ビルド | 本番URL確認 |
+| `supabase/functions/` | main へ push | CI が `supabase functions deploy` | CI run = success |
+| `supabase/migrations/` | main へ push | CI が `supabase db push` | CI run = success |
+| `cloudflare/` (Cron Worker) | main へ push | CI が `wrangler deploy` | CI run = success |
+| Auth/Webhook等の設定変更 | 使い捨て CI workflow | Management API を呼ぶ → 実行 → 削除 | CI run = success |
+
+**手元から本番を直接触らない。** ローカルでの `supabase db push` や `wrangler deploy` は禁止。
+
+### CI 後の検証ループ（必須）
+1. push 後、GitHub Actions の最新 run を MCP で取得する
+2. `conclusion = "success"` を確認してから「完了しました」と報告する
+3. 失敗したらジョブログを取得 → 原因修正 → 再 push（緑になるまでループ）
+
+### Secret の置き場所（コードには絶対書かない）
+
+| Secret | 置き場所 | 用途 |
+|---|---|---|
+| `SUPABASE_ACCESS_TOKEN` | GitHub Secrets | CI から Supabase Edge Function デプロイ |
+| `SUPABASE_DB_PASSWORD` | GitHub Secrets | CI から DB マイグレーション実行 |
+| `CLOUDFLARE_API_TOKEN` | GitHub Secrets | CI から Wrangler デプロイ |
+| `SUPABASE_SERVICE_ROLE_KEY` | Cloudflare Pages 環境変数 / Supabase Secrets | Edge Function・Server Action の RLS バイパス |
+| `LINE_CHANNEL_SECRET` / `LINE_CHANNEL_ACCESS_TOKEN` | Cloudflare Pages 環境変数 / Supabase Secrets | LINE Webhook 署名検証・Push 送信 |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Cloudflare Pages 環境変数 | Stripe Checkout・Webhook |
+
+Secret の **値はこのファイルに書かない**。置き場所だけ上記に記録する。
+
+### 設定変更を API で自動化できない場合
+ローカルから叩けない設定（Secret が CI 側にしかない等）は
+「使い捨て GitHub Actions workflow を作って API を呼ぶ → 実行 → 削除」で実現する。
+
+例:
+- Supabase Auth の Email テンプレート変更 → Management API PATCH
+- LINE Webhook URL の登録 → LINE Messaging API Channel Endpoint API
+- Stripe Webhook エンドポイント登録 → Stripe API POST /v1/webhook_endpoints
+
+### 新しい外部サービスを追加する手順
+1. **調査**: REST/Management API と認証方式を特定（まず API を探す）
+2. **Secret 登録**: 機密情報だけオーナーに1回貼ってもらう。以降は AI が操作
+3. **実装**: 呼び出しはサーバ側（Edge Function / Server Action）に寄せ、鍵を露出させない
+4. **反映**: push → CI で自動デプロイ
+5. **検証**: CI success ＋ 実応答で確認
+6. **台帳化**: Secret の置き場所だけ上記テーブルに1行追記（値は書かない）
+
+### 未接続サービスの扱い（開発を止めない）
+- バックエンド未接続時はモック実装で全画面が動く設計にする
+- 「後回し」のサービスはコードを先に実装済みにし、Secret 投入だけで有効化される状態にする
+- 例: Stripe 未設定 → Checkout URL 生成が失敗してもUIは表示される
+
+### ブランチ・コミット運用
+- 開発は `claude/` プレフィックスのブランチで行う
+- コミットメッセージは日本語 OK、`feat:` / `fix:` / `chore:` プレフィックス付き
+- main へのマージ = 本番反映（CI が全自動でデプロイ）
+- PR はオーナーから明示的に依頼があった時だけ作成する
