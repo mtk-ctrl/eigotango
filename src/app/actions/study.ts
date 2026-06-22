@@ -1,0 +1,154 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { calculateSM2 } from '@/lib/sm2'
+import type { Word, UserWordProgress } from '@/types/database'
+import type { TodayStudyResult } from '@/types/api'
+
+const FREE_DAILY_LIMIT = 20
+
+// 学生のプラン（free/premium）から1日の上限を返す
+async function getDailyLimit(studentId: string): Promise<number> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('student_parent_relations')
+    .select('parent_id, subscriptions!inner(plan)')
+    .eq('student_id', studentId)
+    .not('paired_at', 'is', null)
+    .limit(1)
+    .single()
+
+  const plan = (data as any)?.subscriptions?.plan
+  return plan === 'premium' ? 9999 : FREE_DAILY_LIMIT
+}
+
+// 今日の学習単語リストを取得（復習 + 新規）
+export async function getTodayStudyWords(): Promise<TodayStudyResult> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { sessionId: '', words: [] }
+
+  const today = new Date().toISOString().split('T')[0]
+  const limit = await getDailyLimit(user.id)
+
+  // 1. 復習単語（next_review_date が今日以前）
+  const { data: progressRows } = await supabase
+    .from('user_word_progress')
+    .select('*, word:words(*)')
+    .eq('student_id', user.id)
+    .lte('next_review_date', today)
+    .order('next_review_date')
+    .limit(limit)
+
+  const reviewItems = progressRows ?? []
+  const remaining = limit - reviewItems.length
+
+  // 2. 新規単語（まだ学習していない）
+  const newWordItems: { word: Word; progress: null }[] = []
+  if (remaining > 0) {
+    const { data: allProgress } = await supabase
+      .from('user_word_progress')
+      .select('word_id')
+      .eq('student_id', user.id)
+
+    const studiedIds = allProgress?.map(r => r.word_id) ?? []
+    let query = supabase.from('words').select('*').order('grade').limit(remaining)
+    if (studiedIds.length > 0) {
+      query = query.not('id', 'in', `(${studiedIds.join(',')})`)
+    }
+    const { data: newWords } = await query
+    newWordItems.push(...(newWords ?? []).map(w => ({ word: w as Word, progress: null })))
+  }
+
+  // 3. 当日セッションを取得 or 作成
+  let sessionId = ''
+  const { data: existingSession } = await supabase
+    .from('study_sessions')
+    .select('id')
+    .eq('student_id', user.id)
+    .eq('session_date', today)
+    .single()
+
+  if (existingSession) {
+    sessionId = existingSession.id
+  } else {
+    const { data: newSession } = await supabase
+      .from('study_sessions')
+      .insert({ student_id: user.id, session_date: today })
+      .select('id')
+      .single()
+    sessionId = newSession?.id ?? ''
+  }
+
+  return {
+    sessionId,
+    words: [
+      ...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })),
+      ...newWordItems,
+    ],
+  }
+}
+
+// 1問分の回答を記録して SM-2 を更新
+export async function recordAnswer({
+  sessionId,
+  wordId,
+  quality,
+}: {
+  sessionId: string
+  wordId: string
+  quality: number
+}) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const { data: progress } = await supabase
+    .from('user_word_progress')
+    .select('*')
+    .eq('student_id', user.id)
+    .eq('word_id', wordId)
+    .single()
+
+  const sm2 = calculateSM2({
+    quality,
+    repetitions: progress?.repetitions ?? 0,
+    easinessFactor: progress?.easiness_factor ?? 2.5,
+    intervalDays: progress?.interval_days ?? 1,
+  })
+
+  const now = new Date().toISOString()
+
+  await Promise.all([
+    supabase.from('user_word_progress').upsert({
+      student_id: user.id,
+      word_id: wordId,
+      easiness_factor: sm2.easinessFactor,
+      interval_days: sm2.intervalDays,
+      repetitions: sm2.repetitions,
+      next_review_date: sm2.nextReviewDate,
+      total_reviews: (progress?.total_reviews ?? 0) + 1,
+      correct_count: (progress?.correct_count ?? 0) + (quality >= 3 ? 1 : 0),
+      last_quality: quality,
+      first_learned_at: progress?.first_learned_at ?? now,
+      last_reviewed_at: now,
+    }, { onConflict: 'student_id,word_id' }),
+
+    supabase.from('session_answers').insert({ session_id: sessionId, word_id: wordId, quality }),
+  ])
+}
+
+// セッション完了を記録（親通知はTODO）
+export async function completeSession(
+  sessionId: string,
+  correctCount: number,
+  totalCount: number,
+) {
+  const supabase = await createClient()
+  await supabase.from('study_sessions').update({
+    total_words: totalCount,
+    correct_words: correctCount,
+    completed_at: new Date().toISOString(),
+  }).eq('id', sessionId)
+  // TODO: 親の LINE に結果通知（batch-notify Edge Function を呼ぶ）
+}
