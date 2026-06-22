@@ -20,11 +20,11 @@ interface Subscription {
 
 interface Props {
   parentName: string
-  children: Child[]
+  students: Child[]
   subscription: Subscription
 }
 
-export function ParentClient({ parentName, children, subscription }: Props) {
+export function ParentClient({ parentName, students, subscription }: Props) {
   const [pairingCode, setPairingCode] = useState<string | null>(null)
   const [codeExpiry, setCodeExpiry] = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState(false)
@@ -64,13 +64,13 @@ export function ParentClient({ parentName, children, subscription }: Props) {
         {/* 子どもの今日の学習状況 */}
         <section>
           <h2 className="text-sm font-bold text-gray-500 mb-2">今日の学習状況</h2>
-          {children.length === 0 ? (
+          {students.length === 0 ? (
             <div className="bg-white rounded-2xl p-6 text-center text-gray-400 text-sm">
               まだ子どもと紐付けていません
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {children.map(child => (
+              {students.map(child => (
                 <div key={child.id} className="bg-white rounded-2xl p-4 shadow-sm">
                   <div className="flex justify-between items-start">
                     <div>

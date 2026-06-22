@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { calculateSM2 } from '@/lib/sm2'
+import { sendLinePushMessage } from '@/lib/line'
 import type { Word, UserWordProgress } from '@/types/database'
 import type { TodayStudyResult } from '@/types/api'
 
@@ -138,17 +139,61 @@ export async function recordAnswer({
   ])
 }
 
-// セッション完了を記録（親通知はTODO）
+// セッション完了を記録 + 親へ LINE 通知
 export async function completeSession(
   sessionId: string,
   correctCount: number,
   totalCount: number,
 ) {
   const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return
+
+  const now = new Date().toISOString()
+
   await supabase.from('study_sessions').update({
     total_words: totalCount,
     correct_words: correctCount,
-    completed_at: new Date().toISOString(),
+    completed_at: now,
   }).eq('id', sessionId)
-  // TODO: 親の LINE に結果通知（batch-notify Edge Function を呼ぶ）
+
+  // 親への通知（失敗してもセッション完了は確定させる）
+  try {
+    const { data: relation } = await supabase
+      .from('student_parent_relations')
+      .select('profiles!parent_id(line_user_id)')
+      .eq('student_id', user.id)
+      .not('paired_at', 'is', null)
+      .single()
+
+    const parentLineId = (relation?.profiles as unknown as { line_user_id: string | null } | null)?.line_user_id
+    if (!parentLineId) return
+
+    const { data: myProfile } = await supabase
+      .from('profiles')
+      .select('line_display_name, display_name')
+      .eq('id', user.id)
+      .single()
+
+    const name = myProfile?.line_display_name ?? myProfile?.display_name ?? '子ども'
+    const pct = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0
+
+    await sendLinePushMessage(parentLineId, [{
+      type: 'text',
+      text: [
+        `📊 ${name}さんの今日の学習が完了しました！`,
+        '',
+        `✅ 正解: ${correctCount} / ${totalCount}語`,
+        `📈 正答率: ${pct}%`,
+        '',
+        'よく頑張りました 👏',
+      ].join('\n'),
+    }])
+
+    await supabase.from('study_sessions')
+      .update({ parent_notified_at: now })
+      .eq('id', sessionId)
+  } catch (e) {
+    console.error('[completeSession] parent notification failed:', e)
+  }
 }
