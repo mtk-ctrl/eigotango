@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 // Server Component / Route Handler / Server Action 用クライアント
@@ -27,11 +28,11 @@ export async function createClient() {
   )
 }
 
-// Service Role（管理者権限）クライアント - Edge Function / Webhook 専用
-// RLS をバイパスするため、クライアントサイドには絶対に渡さない
+// Service Role（管理者権限）クライアント
+// RLS をバイパス - サーバー側・Edge Function 専用
+// クライアントサイドには絶対に渡さない
 export function createAdminClient() {
-  const { createClient } = require('@supabase/supabase-js')
-  return createClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
