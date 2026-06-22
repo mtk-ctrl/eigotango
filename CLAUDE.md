@@ -123,16 +123,56 @@ LIFF 内 Stripe Checkout → stripe-webhook → subscriptions 更新
 
 ### Secret の置き場所（コードには絶対書かない）
 
-| Secret | 置き場所 | 用途 |
-|---|---|---|
-| `SUPABASE_ACCESS_TOKEN` | GitHub Secrets | CI から Supabase Edge Function デプロイ |
-| `SUPABASE_DB_PASSWORD` | GitHub Secrets | CI から DB マイグレーション実行 |
-| `CLOUDFLARE_API_TOKEN` | GitHub Secrets | CI から Wrangler デプロイ |
-| `SUPABASE_SERVICE_ROLE_KEY` | Cloudflare Pages 環境変数 / Supabase Secrets | Edge Function・Server Action の RLS バイパス |
-| `LINE_CHANNEL_SECRET` / `LINE_CHANNEL_ACCESS_TOKEN` | Cloudflare Pages 環境変数 / Supabase Secrets | LINE Webhook 署名検証・Push 送信 |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Cloudflare Pages 環境変数 | Stripe Checkout・Webhook |
+#### GitHub Secrets（CI デプロイ用）
+| Secret 名 | 用途 |
+|---|---|
+| `SUPABASE_PROJECT_REF` | Supabase プロジェクト参照ID（URLのサブドメイン部分） |
+| `SUPABASE_ACCESS_TOKEN` | Supabase CLI 認証（supabase.com → Account → Access Tokens） |
+| `SUPABASE_DB_PASSWORD` | DB マイグレーション実行用パスワード（Supabase → Settings → Database） |
+| `LINE_CHANNEL_ACCESS_TOKEN` | Edge Function シークレットとして自動同期 |
+| `LINE_CHANNEL_SECRET` | Edge Function シークレットとして自動同期 |
+| `CLOUDFLARE_API_TOKEN` | Wrangler デプロイ用（Cloudflare → API Tokens → Edit Cloudflare Workers） |
+| `CLOUDFLARE_ACCOUNT_ID` | Wrangler デプロイ先アカウント |
+
+#### Cloudflare Pages 環境変数（Next.js ランタイム用）
+Cloudflare Pages ダッシュボード → Settings → Environment variables で設定:
+| 変数名 | 用途 |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase プロジェクト URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 公開鍵 |
+| `NEXT_PUBLIC_LIFF_ID` | LINE LIFF ID |
+| `NEXT_PUBLIC_APP_URL` | 本番 URL（例: https://eigotango.pages.dev） |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server Action 用 RLS バイパス鍵 |
+| `LINE_CHANNEL_SECRET` | LINE Webhook 署名検証 |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Push 送信 |
+| `STRIPE_SECRET_KEY` | Stripe Checkout 作成 |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook 署名検証 |
+| `STRIPE_PREMIUM_PRICE_ID` | プレミアムプランの Price ID |
+
+#### Cloudflare Worker シークレット（Cron Worker 用）
+Cloudflare ダッシュボードで設定（またはオーナーが `wrangler secret put` を初回実行）:
+| シークレット名 | 用途 |
+|---|---|
+| `SUPABASE_SERVICE_ROLE_KEY` | batch-notify から Supabase を叩くための鍵 |
 
 Secret の **値はこのファイルに書かない**。置き場所だけ上記に記録する。
+
+### オーナーの初回セットアップ手順（これだけやれば後は全自動）
+
+1. **GitHub Secrets を登録**（リポジトリ → Settings → Secrets and variables → Actions）
+   - 上記テーブルの「GitHub Secrets」欄にある7項目を貼り付ける
+
+2. **Cloudflare Pages を GitHub と連携**
+   - Cloudflare ダッシュボード → Pages → Create a project → Connect to Git
+   - リポジトリを選択、ビルドコマンド: `npm run build`、出力: `.next`
+   - 上記テーブルの「Cloudflare Pages 環境変数」欄の10項目を設定
+
+3. **Cloudflare Worker のシークレット設定**
+   - Cloudflare ダッシュボード → Workers → eigotango-cron → Settings → Variables
+   - `SUPABASE_SERVICE_ROLE_KEY` を追加
+
+4. **main にマージ → 以後は全自動**
+   - DB マイグレーション、Edge Function、Cron Worker が CI で自動デプロイされる
 
 ### 設定変更を API で自動化できない場合
 ローカルから叩けない設定（Secret が CI 側にしかない等）は
