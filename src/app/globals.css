@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --line-green: #00C300;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900;
+    /* スマホ最適化 */
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+  }
+}
+
+@layer utilities {
+  /* LIFF アプリ用: 画面全体を使う */
+  .liff-screen {
+    @apply min-h-dvh flex flex-col;
+  }
+
+  /* タップフィードバック */
+  .tap-highlight {
+    @apply active:scale-95 transition-transform duration-100;
+  }
+}

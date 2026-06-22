@@ -1,0 +1,95 @@
+'use client'
+
+import { useState, useCallback } from 'react'
+import { ProgressBar } from '@/components/study/ProgressBar'
+import { WordCard } from '@/components/study/WordCard'
+import { SpellingInput } from '@/components/study/SpellingInput'
+import { ResultCard } from '@/components/study/ResultCard'
+import { checkSpelling } from '@/lib/levenshtein'
+import { recordAnswer, completeSession } from '@/app/actions/study'
+import type { StudyWordItem, SpellingResult } from '@/types/api'
+
+interface Props {
+  words: StudyWordItem[]
+  sessionId: string
+}
+
+type Phase = 'input' | 'result' | 'complete'
+
+export function StudyClient({ words, sessionId }: Props) {
+  const [index, setIndex] = useState(0)
+  const [phase, setPhase] = useState<Phase>('input')
+  const [lastResult, setLastResult] = useState<SpellingResult | null>(null)
+  const [qualities, setQualities] = useState<number[]>([])
+
+  const current = words[index]
+  const isLast = index + 1 >= words.length
+
+  const handleSubmit = useCallback(async (input: string) => {
+    if (!current) return
+    const { type, quality } = checkSpelling(input, current.word.word)
+    setLastResult({ type, input })
+    setQualities(prev => [...prev, quality])
+    setPhase('result')
+    await recordAnswer({ sessionId, wordId: current.word.id, quality })
+  }, [current, sessionId])
+
+  const handleNext = useCallback(async () => {
+    if (isLast) {
+      const correct = qualities.filter(q => q >= 3).length
+      await completeSession(sessionId, correct, words.length)
+      setPhase('complete')
+    } else {
+      setIndex(i => i + 1)
+      setPhase('input')
+      setLastResult(null)
+    }
+  }, [isLast, sessionId, qualities, words.length])
+
+  if (words.length === 0) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-5xl mb-4">🌟</p>
+        <p className="text-xl font-bold">今日の学習は完了！</p>
+        <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
+      </div>
+    )
+  }
+
+  if (phase === 'complete') {
+    const correct = qualities.filter(q => q >= 3).length
+    const pct = Math.round((correct / words.length) * 100)
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center">
+        <p className="text-6xl mb-4">🎉</p>
+        <h1 className="text-2xl font-bold mb-2">今日の学習完了！</h1>
+        <p className="text-gray-600 text-lg">
+          {words.length}語中{' '}
+          <span className="font-bold text-green-600">{correct}語</span> 正解
+        </p>
+        <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
+        <p className="text-gray-400 text-xs mt-6">保護者に結果を通知しました</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-dvh flex flex-col p-4 gap-4">
+      <ProgressBar current={index + 1} total={words.length} />
+      <WordCard word={current.word} />
+
+      {phase === 'input' && (
+        <SpellingInput onSubmit={handleSubmit} />
+      )}
+
+      {phase === 'result' && lastResult && (
+        <ResultCard
+          word={current.word}
+          result={lastResult}
+          onNext={handleNext}
+          isLast={isLast}
+        />
+      )}
+    </div>
+  )
+}
