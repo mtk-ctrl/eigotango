@@ -43,10 +43,8 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: プロジェクトにリンク
-        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
-      - name: マイグレーション適用
-        run: supabase db push --linked
+      - name: マイグレーション適用（Management API 経由・DB パスワード不要）
+        run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
 
   # ─────────────────────────────────
   # 3. Edge Function デプロイ
