@@ -123,7 +123,10 @@ jobs:
       - run: npm ci
       - name: Build & Deploy（Cloudflare 設定済みの場合のみ）
         run: |
-          if [ -n "$CF_TOKEN" ]; then
+          # トークンに混入しがちな空白・改行を除去（Authorization header 6111 対策）
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
             npx opennextjs-cloudflare build
             npx opennextjs-cloudflare deploy
             echo "✅ Cloudflare Workers デプロイ完了"
@@ -156,7 +159,10 @@ jobs:
       - run: npm ci
       - name: Wrangler デプロイ（Cloudflare 設定済みの場合のみ）
         run: |
-          if [ -n "$CF_TOKEN" ]; then
+          # トークンに混入しがちな空白・改行を除去（Authorization header 6111 対策）
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
             npx wrangler deploy --config cloudflare/wrangler.toml
             echo "✅ Cron Worker デプロイ完了"
           else
