@@ -33,5 +33,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# lock files (keep package-lock.json for reproducibility, but exclude if preferred)
-package-lock.json
+# OpenNext / Cloudflare build output
+.open-next/
+.wrangler/
+cloudflare-env.d.ts
+
+# package-lock.json はコミットする（CI の npm ci で必須・再現性のため）
