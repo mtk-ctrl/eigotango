@@ -126,9 +126,8 @@ LIFF 内 Stripe Checkout → stripe-webhook → subscriptions 更新
 #### GitHub Secrets（CI デプロイ用）
 | Secret 名 | 用途 |
 |---|---|
-| `SUPABASE_PROJECT_REF` | Supabase プロジェクト参照ID（URLのサブドメイン部分） |
-| `SUPABASE_ACCESS_TOKEN` | Supabase CLI 認証（supabase.com → Account → Access Tokens） |
-| `SUPABASE_DB_PASSWORD` | DB マイグレーション実行用パスワード（Supabase → Settings → Database） |
+| `SUPABASE_PROJECT_REF` | Supabase プロジェクト参照ID（Project Settings → General → Project ID） |
+| `SUPABASE_ACCESS_TOKEN` | Supabase CLI 認証（supabase.com/dashboard/account/tokens → Generate） |
 | `LINE_CHANNEL_ACCESS_TOKEN` | Edge Function シークレットとして自動同期 |
 | `LINE_CHANNEL_SECRET` | Edge Function シークレットとして自動同期 |
 | `CLOUDFLARE_API_TOKEN` | Wrangler デプロイ用（Cloudflare → API Tokens → Edit Cloudflare Workers） |
