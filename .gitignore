@@ -38,4 +38,7 @@ next-env.d.ts
 .wrangler/
 cloudflare-env.d.ts
 
+# Claude Code のローカル個人設定（共有しない）
+.claude/settings.local.json
+
 # package-lock.json はコミットする（CI の npm ci で必須・再現性のため）
