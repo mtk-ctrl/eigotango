@@ -38,13 +38,30 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - name: マイグレーション適用（Management API 経由・DB パスワード不要）
-        run: supabase db push --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      - name: プロジェクトにリンク
+        run: supabase link --project-ref ${{ secrets.SUPABASE_PROJECT_REF }}
+      - name: マイグレーション適用（db push は DB 直結・パスワード必須。504 はフレーキーなので最大3回リトライ）
+        run: |
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "⏭️ SUPABASE_DB_PASSWORD 未設定のためスキップ（手動で Supabase にマイグレーション適用が必要）"
+            exit 0
+          fi
+          for i in 1 2 3; do
+            if supabase db push --linked; then
+              echo "✅ マイグレーション適用完了"
+              exit 0
+            fi
+            echo "⚠️ 試行 $i 失敗。10秒後にリトライ..."
+            sleep 10
+          done
+          echo "❌ マイグレーション適用が3回とも失敗"
+          exit 1
 
   # ─────────────────────────────────
   # 3. Edge Function デプロイ
