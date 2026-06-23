@@ -91,13 +91,42 @@ jobs:
           LINE_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
 
   # ─────────────────────────────────
-  # 4. Cloudflare Worker（Cron）デプロイ
+  # 4. Cloudflare Workers デプロイ（Next.js アプリ本体）
   #    CLOUDFLARE_API_TOKEN が設定済みの場合のみ実行
   # ─────────────────────────────────
-  # Next.js アプリ本体は Cloudflare の Git 連携（Workers Builds）が
-  # push を検知して自動ビルド・デプロイするため、ここでは扱わない。
+  deploy-cloudflare-workers:
+    name: Cloudflare Workers デプロイ
+    needs: typecheck
+    if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Build & Deploy（Cloudflare 設定済みの場合のみ）
+        run: |
+          if [ -n "$CF_TOKEN" ]; then
+            npx opennextjs-cloudflare build
+            npx wrangler deploy
+            echo "✅ Cloudflare Workers デプロイ完了"
+          else
+            echo "⏭️ CLOUDFLARE_API_TOKEN 未設定のためスキップ"
+          fi
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_LIFF_ID: ${{ vars.NEXT_PUBLIC_LIFF_ID }}
+          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
 
-  # Cron Worker（batch-notify を毎朝叩く）だけ CI からデプロイ
+  # ─────────────────────────────────
+  # 5. Cloudflare Worker（Cron）デプロイ
+  # ─────────────────────────────────
   deploy-cron-worker:
     name: Cron Worker デプロイ
     needs: typecheck
