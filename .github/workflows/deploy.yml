@@ -123,9 +123,11 @@ jobs:
       - run: npm ci
       - name: Build & Deploy（Cloudflare 設定済みの場合のみ）
         run: |
-          # トークンに混入しがちな空白・改行を除去（Authorization header 6111 対策）
-          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
-          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          # トークンに混入しがちな不可視文字・クォート・改行を除去（Authorization header 6111 対策）
+          # CF API トークンに使える文字 [A-Za-z0-9_-] 以外をすべて削除する（全角/NBSP/ゼロ幅/引用符も除去）
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | LC_ALL=C tr -cd 'A-Za-z0-9_-')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | LC_ALL=C tr -cd 'A-Za-z0-9')"
+          echo "ℹ️ サニタイズ後トークン長: ${#CLOUDFLARE_API_TOKEN} 文字（正常な CF API トークンは 40 文字）"
           if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
             npx opennextjs-cloudflare build
             npx opennextjs-cloudflare deploy
@@ -159,9 +161,11 @@ jobs:
       - run: npm ci
       - name: Wrangler デプロイ（Cloudflare 設定済みの場合のみ）
         run: |
-          # トークンに混入しがちな空白・改行を除去（Authorization header 6111 対策）
-          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '[:space:]')"
-          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          # トークンに混入しがちな不可視文字・クォート・改行を除去（Authorization header 6111 対策）
+          # CF API トークンに使える文字 [A-Za-z0-9_-] 以外をすべて削除する（全角/NBSP/ゼロ幅/引用符も除去）
+          export CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | LC_ALL=C tr -cd 'A-Za-z0-9_-')"
+          export CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | LC_ALL=C tr -cd 'A-Za-z0-9')"
+          echo "ℹ️ サニタイズ後トークン長: ${#CLOUDFLARE_API_TOKEN} 文字（正常な CF API トークンは 40 文字）"
           if [ -n "$CLOUDFLARE_API_TOKEN" ]; then
             npx wrangler deploy --config cloudflare/wrangler.toml
             echo "✅ Cron Worker デプロイ完了"
