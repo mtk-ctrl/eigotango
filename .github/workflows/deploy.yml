@@ -108,7 +108,7 @@ jobs:
         run: |
           if [ -n "$CF_TOKEN" ]; then
             npx opennextjs-cloudflare build
-            npx wrangler deploy
+            npx opennextjs-cloudflare deploy
             echo "✅ Cloudflare Workers デプロイ完了"
           else
             echo "⏭️ CLOUDFLARE_API_TOKEN 未設定のためスキップ"
