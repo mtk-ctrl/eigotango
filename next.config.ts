@@ -13,3 +13,7 @@ const nextConfig: NextConfig = {
 }
 
 export default nextConfig
+
+// ローカル開発時に Cloudflare バインディングを有効化（本番ビルドには影響なし）
+import { initOpenNextCloudflareForDev } from '@opennextjs/cloudflare'
+initOpenNextCloudflareForDev()

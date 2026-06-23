@@ -1,0 +1,14 @@
+name = "eigotango-cron"
+main = "cron-worker.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+# 毎日 UTC 22:00 = JST 07:00
+crons = ["0 22 * * *"]
+
+[vars]
+# Supabase プロジェクト URL（公開情報・シークレット不要）
+SUPABASE_URL = "https://xxxxxxxxxxxx.supabase.co"
+
+# SUPABASE_SERVICE_ROLE_KEY は wrangler secret で管理（コードに書かない）
+# Cloudflare ダッシュボード → Workers → eigotango-cron → Settings → Variables

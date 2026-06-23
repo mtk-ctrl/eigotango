@@ -1,9 +1,7 @@
 'use server'
 
-import Stripe from 'stripe'
+import { getStripe } from '@/lib/stripe'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
 // Stripe Checkout セッションを作成してURLを返す
 export async function createCheckoutSession(): Promise<{ url: string }> {
@@ -11,6 +9,7 @@ export async function createCheckoutSession(): Promise<{ url: string }> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')
 
+  const stripe = getStripe()
   const admin = createAdminClient()
 
   // 既存の Stripe customer ID を取得
@@ -69,6 +68,6 @@ export async function cancelSubscription(): Promise<void> {
     .single()
 
   if (sub?.stripe_subscription_id) {
-    await stripe.subscriptions.cancel(sub.stripe_subscription_id)
+    await getStripe().subscriptions.cancel(sub.stripe_subscription_id)
   }
 }
