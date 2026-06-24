@@ -1,0 +1,51 @@
+name: DB apply (Management API)
+
+# CI の db push は SUPABASE_DB_PASSWORD 未設定でスキップされるため、
+# DB スキーマ変更・データ投入は Management API 直叩きで適用する。
+#
+# 使い方:
+#   1) 冪等な SQL を supabase/apply/*.sql に置く（IF NOT EXISTS / ON CONFLICT / CREATE OR REPLACE）
+#   2) main に push する → このワークフローが supabase/apply/ 内の SQL を順に適用
+#   3) Actions のログで HTTP 2xx を確認
+#   4) 適用済み SQL は supabase/apply/ から削除してコミット（次回の再適用を防ぐ）
+# 詳細は docs/DB.md を参照。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/apply/**.sql'
+  workflow_dispatch:
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply SQL files via Management API
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(supabase/apply/*.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "適用する SQL がありません（supabase/apply/ は空）"
+            exit 0
+          fi
+          for f in $(printf '%s\n' "${files[@]}" | sort); do
+            echo "─── $f を適用 ───"
+            PAYLOAD=$(jq -Rs '{query: .}' "$f")
+            HTTP=$(curl -sS -o /tmp/resp.json -w '%{http_code}' \
+              -X POST "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query" \
+              -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "$PAYLOAD")
+            echo "HTTP $HTTP"
+            cat /tmp/resp.json; echo
+            if [ "$HTTP" -ge 300 ]; then
+              echo "❌ $f の適用に失敗"
+              exit 1
+            fi
+            echo "✅ $f 適用完了"
+          done

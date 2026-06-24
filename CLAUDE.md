@@ -39,6 +39,7 @@
 - 現況・直近タスク → **`NOW.md`** ／ 全履歴 → `logs/CHANGELOG.md`
 - 技術スタック・ファイル構成・データフロー・SM-2・プラン・ペアリング → `docs/ARCHITECTURE.md`
 - デプロイパイプライン・CI 検証ループ・Workers + OpenNext → `docs/DEPLOY.md`
+- 本番 DB 変更の適用（CI の db push はスキップ中 → Management API 直叩き）→ `docs/DB.md`
 - Secret 台帳・オーナー初回セットアップ → `docs/SECRETS.md`
 
 **手元から本番を直接触らない。** ローカルでの `supabase db push` / `wrangler deploy` は禁止。

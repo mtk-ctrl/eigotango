@@ -6,7 +6,8 @@
 |---|---|---|---|
 | `src/` (フロント) | main へ push | Cloudflare Workers Builds が OpenNext でビルド・デプロイ | 本番 URL 確認 |
 | `supabase/functions/` | main へ push | CI が `supabase functions deploy` | CI run = success |
-| `supabase/migrations/` | main へ push | CI が `supabase db push --linked` | CI run = success |
+| `supabase/migrations/` | main へ push | CI の `db push` は **`SUPABASE_DB_PASSWORD` 未設定でスキップ中**（正本のみ更新） | — |
+| 本番 DB へ今すぐ反映 | `supabase/apply/*.sql` を main へ push | `db-apply.yml` が Management API で適用 | CI success + HTTP 2xx（→ `docs/DB.md`） |
 | `cloudflare/wrangler.toml` (Cron) | main へ push | CI が `wrangler deploy --config cloudflare/wrangler.toml` | CI run = success |
 | Auth/Webhook 等の設定変更 | 使い捨て CI workflow | Management API を呼ぶ → 実行 → 削除 | CI run = success |
 
