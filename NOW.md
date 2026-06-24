@@ -15,8 +15,9 @@
 
 ## ② 次にやること
 
-- [ ] **重要: CI の DB マイグレーションが常にスキップされている**（`SUPABASE_DB_PASSWORD` 未設定 → `db push` がスキップされるがジョブは success 扱い）。
-      → オーナーに `SUPABASE_DB_PASSWORD` を GitHub Secret 登録してもらう。当面の DB 変更は使い捨てワークフローで Management API 直叩き（`/v1/projects/{ref}/database/query`）。
+- [ ] **CI の DB マイグレーションはスキップ中**（`SUPABASE_DB_PASSWORD` 未設定 → `db push` がスキップ／ジョブは success 扱い）。
+      → 当面の DB 変更は `supabase/apply/*.sql` に置いて push（常設 `db-apply.yml` が Management API で適用）。**手順は `docs/DB.md`**。
+      → 恒久対応はオーナーが `SUPABASE_DB_PASSWORD` を GitHub Secret 登録（登録後はこのレーン不要）。
 - [ ] LINE 連携の有効化（LIFF作成済み → `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` / `NEXT_PUBLIC_LIFF_ID` を登録）
 - [ ] LIFF エンドポイント URL を本番 URL（https://eigotango.mtk551141.workers.dev）に更新
 - [ ] Stripe 連携の有効化（`STRIPE_*` を登録 → Webhook エンドポイント登録）
