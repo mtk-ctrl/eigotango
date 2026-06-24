@@ -57,7 +57,8 @@ export function LoginClient() {
         go((profile?.role as Role) ?? 'student')
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
+      const raw = err instanceof Error ? err.message : JSON.stringify(err)
+      const message = raw === '{}' || raw === '[object Object]' ? '' : raw
       setErrorMsg(translateError(message))
     } finally {
       setLoading(false)
