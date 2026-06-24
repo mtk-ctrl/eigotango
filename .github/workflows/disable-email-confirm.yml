@@ -1,0 +1,22 @@
+name: Disable Email Confirmation (one-shot)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  patch-auth-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disable email confirmation (mailer_autoconfirm)
+        run: |
+          set -e
+          RESP=$(curl -s -w "\n%{http_code}" -X PATCH \
+            "https://api.supabase.com/v1/projects/${{ secrets.SUPABASE_PROJECT_REF }}/config/auth" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"mailer_autoconfirm": true, "external_email_enabled": true}')
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n 1)
+          echo "HTTP $CODE"
+          echo "$BODY"
+          if [ "$CODE" -ge 300 ]; then exit 1; fi
