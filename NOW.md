@@ -5,9 +5,10 @@
 ## ① いまの状態
 
 - フロント全画面（study / progress / parent / pairing / login）実装済み。
-- **本番 URL: https://eigotango.mtk551141.workers.dev**（CI #19 デプロイ成功・2026-06-23）
+- **本番 URL: https://eigotango.mtk551141.workers.dev**（2026-06-24 デプロイ・500 エラー解消済み）
 - CI/CD パイプライン稼働中（typecheck → DB → Edge Function → Cron Worker → Cloudflare Workers）。
 - Supabase Secrets 設定済み・DB マイグレーション自動化を実機検証済み。
+- `NEXT_PUBLIC_*` はビルド時に焼き込まれるため `.env.production`（公開値・コミット済み）で管理。
 
 ## ② 次にやること
 
@@ -20,7 +21,7 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-06-24 | 本番 500 エラー修正（NEXT_PUBLIC をビルド時に空で焼き込んでいた／.env.production で解決） |
+| 2026-06-24 | 本番 URL を記録・全ジョブ CI デプロイ成功を確認 |
 | 2026-06-23 | CI に Cloudflare Workers デプロイジョブを追加（NEXT_PUBLIC vars 対応） |
 | 2026-06-23 | CLAUDE.md を分割（docs/・NOW.md）＋ commit/deploy スキルと hooks を追加 |
-| 2026-06-23 | CLAUDE.md を AI CEO 運用モデルへ統合・再整理 |
-| 2026-06-23 | Cloudflare Workers + OpenNext 構成に移行（Pages 非推奨対応） |
