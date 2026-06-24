@@ -2,6 +2,10 @@ name: Disable Email Confirmation (one-shot)
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/disable-email-confirm.yml'
 
 jobs:
   patch-auth-config:
