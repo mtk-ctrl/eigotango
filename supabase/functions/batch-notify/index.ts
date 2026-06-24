@@ -14,7 +14,7 @@ Deno.serve(async (_req) => {
   )
 
   const today = new Date().toISOString().split('T')[0]
-  const liffId = Deno.env.get('LIFF_ID')!
+  const appUrl = Deno.env.get('APP_URL') ?? 'https://eigotango.mtk551141.workers.dev'
   const lineToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')!
 
   // 今日復習が必要な学生の line_user_id を抽出（重複なし）
@@ -90,7 +90,7 @@ Deno.serve(async (_req) => {
             action: {
               type: 'uri',
               label: '学習を始める →',
-              uri: `https://liff.line.me/${liffId}`,
+              uri: `${appUrl}/study`,
             },
           },
         ],

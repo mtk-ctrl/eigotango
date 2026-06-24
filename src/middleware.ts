@@ -42,5 +42,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
+  // auth/callback はセッション確立前にミドルウェアが干渉しないよう除外
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/|auth/).*)'],
 }
