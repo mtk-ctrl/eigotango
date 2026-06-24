@@ -1,9 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { generatePairingCode } from '@/app/actions/parent'
 import { createCheckoutSession } from '@/app/actions/stripe'
+import { LogoutButton } from '@/components/LogoutButton'
 
 interface Child {
   id: string
@@ -29,7 +30,6 @@ export function ParentClient({ parentName, students, subscription }: Props) {
   const [codeExpiry, setCodeExpiry] = useState<string | null>(null)
   const [generatingCode, setGeneratingCode] = useState(false)
   const [upgrading, setUpgrading] = useState(false)
-  const router = useRouter()
 
   const handleGenerateCode = async () => {
     setGeneratingCode(true)
@@ -56,14 +56,38 @@ export function ParentClient({ parentName, students, subscription }: Props) {
     <div className="min-h-dvh bg-gray-50 pb-8">
       {/* ヘッダー */}
       <div className="bg-blue-500 text-white px-4 pt-10 pb-6">
-        <p className="text-sm opacity-80">保護者ダッシュボード</p>
-        <h1 className="text-xl font-bold mt-1">{parentName || 'こんにちは'} さん</h1>
+        <div className="flex justify-between items-start">
+          <div>
+            <p className="text-sm opacity-80">保護者ダッシュボード</p>
+            <h1 className="text-xl font-bold mt-1">{parentName || 'こんにちは'} さん</h1>
+          </div>
+          <LogoutButton className="text-xs text-white/70 underline mt-1" />
+        </div>
       </div>
 
       <div className="px-4 mt-4 flex flex-col gap-4">
+        {/* 自分で学習（Pattern 3: 親が直接学習） */}
+        <section>
+          <h2 className="text-sm font-bold text-gray-500 mb-2">自分で学習する</h2>
+          <div className="bg-white rounded-2xl p-4 shadow-sm flex gap-3">
+            <Link
+              href="/study"
+              className="flex-1 py-3 bg-green-500 text-white text-center rounded-xl font-bold text-sm active:scale-95 transition-transform"
+            >
+              今日の問題を解く
+            </Link>
+            <Link
+              href="/progress"
+              className="flex-1 py-3 bg-gray-100 text-gray-700 text-center rounded-xl font-bold text-sm active:scale-95 transition-transform"
+            >
+              学習記録を見る
+            </Link>
+          </div>
+        </section>
+
         {/* 子どもの今日の学習状況 */}
         <section>
-          <h2 className="text-sm font-bold text-gray-500 mb-2">今日の学習状況</h2>
+          <h2 className="text-sm font-bold text-gray-500 mb-2">子どもの学習状況</h2>
           {students.length === 0 ? (
             <div className="bg-white rounded-2xl p-6 text-center text-gray-400 text-sm">
               まだ子どもと紐付けていません
@@ -128,7 +152,7 @@ export function ParentClient({ parentName, students, subscription }: Props) {
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             {subscription.plan === 'premium' ? (
               <div className="flex items-center gap-2">
-                <span className="text-yellow-500 text-xl">⭐</span>
+                <span className="text-yellow-500 text-xl">★</span>
                 <div>
                   <p className="font-bold">プレミアムプラン</p>
                   {subscription.current_period_end && (
@@ -148,7 +172,7 @@ export function ParentClient({ parentName, students, subscription }: Props) {
                   disabled={upgrading}
                   className="w-full py-3 bg-yellow-400 text-gray-900 rounded-xl font-bold disabled:opacity-50"
                 >
-                  {upgrading ? '処理中...' : '⭐ プレミアムにアップグレード'}
+                  {upgrading ? '処理中...' : '★ プレミアムにアップグレード'}
                 </button>
               </div>
             )}

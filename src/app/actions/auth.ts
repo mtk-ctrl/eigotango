@@ -3,6 +3,12 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 
+export async function signOut() {
+  const supabase = await createClient()
+  await supabase.auth.signOut()
+  redirect('/login')
+}
+
 // 初回ログイン時にロールを設定してリダイレクト
 export async function setUserRole(role: 'student' | 'parent') {
   const supabase = await createClient()
