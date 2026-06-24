@@ -15,6 +15,8 @@
 
 ## ② 次にやること
 
+- [ ] **重要: CI の DB マイグレーションが常にスキップされている**（`SUPABASE_DB_PASSWORD` 未設定 → `db push` がスキップされるがジョブは success 扱い）。
+      → オーナーに `SUPABASE_DB_PASSWORD` を GitHub Secret 登録してもらう。当面の DB 変更は使い捨てワークフローで Management API 直叩き（`/v1/projects/{ref}/database/query`）。
 - [ ] LINE 連携の有効化（LIFF作成済み → `LINE_CHANNEL_ACCESS_TOKEN` / `LINE_CHANNEL_SECRET` / `NEXT_PUBLIC_LIFF_ID` を登録）
 - [ ] LIFF エンドポイント URL を本番 URL（https://eigotango.mtk551141.workers.dev）に更新
 - [ ] Stripe 連携の有効化（`STRIPE_*` を登録 → Webhook エンドポイント登録）
@@ -24,7 +26,7 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-06-24 | 本番 words テーブルが空で /study が即「完了」→ 50語を Management API で投入（db push がスキップされていた） |
 | 2026-06-24 | ログアウトボタン追加（全認証済み画面）＋ 3パターン対応（親が直接 /study へアクセス可能） |
 | 2026-06-24 | メール+パスワード認証に変更（メール送信不要／mailer_autoconfirm を Management API で OFF） |
 | 2026-06-24 | LINE LIFF 認証を廃止しウェブ認証へ・LINE は通知専用に |
-| 2026-06-24 | 本番 500 エラー修正（NEXT_PUBLIC をビルド時に空で焼き込んでいた／.env.production で解決） |
