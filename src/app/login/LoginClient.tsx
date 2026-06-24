@@ -27,7 +27,8 @@ export function LoginClient() {
     })
 
     if (error) {
-      setErrorMsg(error.message && error.message !== '{}' ? error.message : 'ログインメールの送信に失敗しました。しばらくして再試行してください。')
+      const msg = error.message || (error as unknown as { error_description?: string }).error_description || JSON.stringify(error)
+      setErrorMsg(msg && msg !== '{}' ? msg : 'ログインメールの送信に失敗しました。しばらくして再試行してください。')
       setStep('error')
     } else {
       setStep('sent')
