@@ -1,0 +1,25 @@
+name: Delete orphaned user (one-shot)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/delete-orphaned-user.yml'
+
+jobs:
+  delete-user:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete mtk551141@gmail.com from auth.users (if exists)
+        run: |
+          set -e
+          RESP=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://api.supabase.com/v1/projects/${{ secrets.SUPABASE_PROJECT_REF }}/database/query" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"query": "DELETE FROM auth.users WHERE email = '\''mtk551141@gmail.com'\''"}')
+          BODY=$(echo "$RESP" | head -n -1)
+          CODE=$(echo "$RESP" | tail -n 1)
+          echo "HTTP $CODE"
+          echo "$BODY"
+          if [ "$CODE" -ge 300 ]; then exit 1; fi
