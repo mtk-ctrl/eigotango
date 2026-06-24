@@ -135,14 +135,14 @@ jobs:
           else
             echo "⏭️ CLOUDFLARE_API_TOKEN 未設定のためスキップ"
           fi
+        # NEXT_PUBLIC_* はビルド時にサーバー/クライアントバンドルへ静的に焼き込まれる。
+        # 値は .env.production（コミット済み・公開値）から next build が読む。
+        # ここで空の ${{ vars.* }} を渡すと「設定済みの空文字」が .env.production を上書きし、
+        # createServerClient("") が supabaseUrl required を投げて全ルート 500 になるため、あえて並べない。
         env:
           CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          NEXT_PUBLIC_LIFF_ID: ${{ vars.NEXT_PUBLIC_LIFF_ID }}
-          NEXT_PUBLIC_APP_URL: ${{ vars.NEXT_PUBLIC_APP_URL }}
 
   # ─────────────────────────────────
   # 5. Cloudflare Worker（Cron）デプロイ
