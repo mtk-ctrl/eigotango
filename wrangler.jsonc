@@ -9,5 +9,12 @@
   "assets": {
     "binding": "ASSETS",
     "directory": ".open-next/assets"
+  },
+  "vars": {
+    // NEXT_PUBLIC_* は Workers ランタイムの process.env として必要（bake-in だけでは不足）
+    "NEXT_PUBLIC_SUPABASE_URL": "https://ocsqmilqknsneowaxjso.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_TQ_mhpVowup7-KoA7DoBRQ_4gGB1pZ9",
+    "NEXT_PUBLIC_APP_URL": "https://eigotango.mtk551141.workers.dev"
+    // NEXT_PUBLIC_LIFF_ID は LINE 連携設定後に追加
   }
 }
