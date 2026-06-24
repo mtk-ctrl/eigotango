@@ -8,7 +8,13 @@ export default async function StudyPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
   const { sessionId, words } = await getTodayStudyWords()
 
-  return <StudyClient words={words} sessionId={sessionId} />
+  return <StudyClient words={words} sessionId={sessionId} userRole={(profile?.role as 'student' | 'parent') ?? 'student'} />
 }

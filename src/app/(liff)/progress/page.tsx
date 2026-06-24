@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { LogoutButton } from '@/components/LogoutButton'
 
-// UTC 日付文字列 'YYYY-MM-DD' を日本語表示に変換
 function formatDate(dateStr: string): string {
   const DOW = ['日', '月', '火', '水', '木', '金', '土']
   const d = new Date(dateStr + 'T12:00:00Z')
@@ -13,6 +13,14 @@ export default async function ProgressPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single()
+
+  const isParent = profile?.role === 'parent'
 
   const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0]
@@ -52,7 +60,10 @@ export default async function ProgressPage() {
     <div className="min-h-dvh bg-gray-50 pb-8">
       {/* ヘッダー */}
       <div className="bg-green-500 text-white px-4 pt-10 pb-6">
-        <h1 className="text-xl font-bold">学習進捗</h1>
+        <div className="flex justify-between items-start">
+          <h1 className="text-xl font-bold">学習進捗</h1>
+          <LogoutButton className="text-xs text-white/70 underline mt-1" />
+        </div>
       </div>
 
       <div className="px-4 mt-4 flex flex-col gap-4">
@@ -119,7 +130,7 @@ export default async function ProgressPage() {
                         <span className="text-xs text-green-600 font-bold">
                           {s.correct_words}/{s.total_words}語
                         </span>
-                        <span>✅</span>
+                        <span>✓</span>
                       </>
                     ) : (
                       <span className="text-xs text-gray-400">未完了</span>
@@ -139,12 +150,21 @@ export default async function ProgressPage() {
           >
             今日の学習へ →
           </Link>
-          <Link
-            href="/pairing"
-            className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
-          >
-            🔗 紐付け
-          </Link>
+          {isParent ? (
+            <Link
+              href="/parent"
+              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
+            >
+              ダッシュボード
+            </Link>
+          ) : (
+            <Link
+              href="/pairing"
+              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
+            >
+              🔗 紐付け
+            </Link>
+          )}
         </div>
       </div>
     </div>

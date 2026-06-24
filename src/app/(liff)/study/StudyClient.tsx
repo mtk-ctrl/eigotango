@@ -1,22 +1,25 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import Link from 'next/link'
 import { ProgressBar } from '@/components/study/ProgressBar'
 import { WordCard } from '@/components/study/WordCard'
 import { SpellingInput } from '@/components/study/SpellingInput'
 import { ResultCard } from '@/components/study/ResultCard'
 import { checkSpelling } from '@/lib/levenshtein'
 import { recordAnswer, completeSession } from '@/app/actions/study'
+import { LogoutButton } from '@/components/LogoutButton'
 import type { StudyWordItem, SpellingResult } from '@/types/api'
 
 interface Props {
   words: StudyWordItem[]
   sessionId: string
+  userRole: 'student' | 'parent'
 }
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ words, sessionId }: Props) {
+export function StudyClient({ words, sessionId, userRole }: Props) {
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('input')
   const [lastResult, setLastResult] = useState<SpellingResult | null>(null)
@@ -48,10 +51,21 @@ export function StudyClient({ words, sessionId }: Props) {
 
   if (words.length === 0) {
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center">
-        <p className="text-5xl mb-4">🌟</p>
-        <p className="text-xl font-bold">今日の学習は完了！</p>
-        <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center gap-6">
+        <div>
+          <p className="text-5xl mb-4">🌟</p>
+          <p className="text-xl font-bold">今日の学習は完了！</p>
+          <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <Link href="/progress" className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            学習記録を見る
+          </Link>
+          <Link href={userRole === 'parent' ? '/parent' : '/progress'} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
+            ダッシュボードへ
+          </Link>
+          <LogoutButton className="text-xs text-gray-400 underline text-center" />
+        </div>
       </div>
     )
   }
@@ -60,15 +74,28 @@ export function StudyClient({ words, sessionId }: Props) {
     const correct = qualities.filter(q => q >= 3).length
     const pct = Math.round((correct / words.length) * 100)
     return (
-      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center">
-        <p className="text-6xl mb-4">🎉</p>
-        <h1 className="text-2xl font-bold mb-2">今日の学習完了！</h1>
-        <p className="text-gray-600 text-lg">
-          {words.length}語中{' '}
-          <span className="font-bold text-green-600">{correct}語</span> 正解
-        </p>
-        <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
-        <p className="text-gray-400 text-xs mt-6">保護者に結果を通知しました</p>
+      <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center gap-6">
+        <div>
+          <p className="text-6xl mb-4">🎉</p>
+          <h1 className="text-2xl font-bold mb-2">今日の学習完了！</h1>
+          <p className="text-gray-600 text-lg">
+            {words.length}語中{' '}
+            <span className="font-bold text-green-600">{correct}語</span> 正解
+          </p>
+          <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
+          {userRole === 'student' && (
+            <p className="text-gray-400 text-xs mt-6">保護者に結果を通知しました</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-3 w-full max-w-xs">
+          <Link href="/progress" className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            学習記録を見る
+          </Link>
+          <Link href={userRole === 'parent' ? '/parent' : '/progress'} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
+            ダッシュボードへ
+          </Link>
+          <LogoutButton className="text-xs text-gray-400 underline text-center" />
+        </div>
       </div>
     )
   }
