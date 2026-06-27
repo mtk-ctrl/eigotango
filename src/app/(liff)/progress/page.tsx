@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { getStudentDailyMax } from '@/app/actions/study'
 import { LogoutButton } from '@/components/LogoutButton'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 
@@ -140,7 +141,7 @@ export default async function ProgressPage({
           <SelfGoalSetting
             current={myProfile?.daily_goal ?? 10}
             locked={myProfile?.daily_goal_locked ?? false}
-            max={20}
+            max={await getStudentDailyMax(studentId)}
           />
         )}
 

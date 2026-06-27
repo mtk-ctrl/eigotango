@@ -23,12 +23,14 @@ export default async function StudyPage({
   let studentId = user.id
   let studentName: string | undefined
   let returnTo = role === 'parent' ? '/parent' : '/progress'
+  let recordsHref = '/progress'
   let showLogout = true
 
   // 親が子の代わりに学習（?child=...）
   if (child && child !== user.id) {
     studentId = child
     returnTo = '/parent'
+    recordsHref = `/progress?child=${child}`
     showLogout = false
     const admin = createAdminClient()
     const { data: cp } = await admin
@@ -57,6 +59,7 @@ export default async function StudyPage({
       studentId={studentId}
       studentName={studentName}
       returnTo={returnTo}
+      recordsHref={recordsHref}
       showLogout={showLogout}
     />
   )

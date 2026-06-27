@@ -17,13 +17,14 @@ interface Props {
   sessionId: string
   studentId: string
   studentName?: string   // 親が子の代わりに学習しているとき表示
-  returnTo: string       // 「やめる」「ダッシュボードへ」の戻り先
+  returnTo: string       // 「やめる」「ホームへ戻る」の戻り先
+  recordsHref: string    // 学習記録（進捗）へのリンク
   showLogout: boolean    // 本人ログイン時のみログアウトを出す
 }
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ words, sessionId, studentId, studentName, returnTo, showLogout }: Props) {
+export function StudyClient({ words, sessionId, studentId, studentName, returnTo, recordsHref, showLogout }: Props) {
   const router = useRouter()
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('input')
@@ -73,9 +74,14 @@ export function StudyClient({ words, sessionId, studentId, studentName, returnTo
           <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Link href={returnTo} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
-            戻る
+          <Link href={recordsHref} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            学習記録を見る
           </Link>
+          {returnTo !== recordsHref && (
+            <Link href={returnTo} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
+              ホームへ戻る
+            </Link>
+          )}
           {showLogout && <LogoutButton className="text-xs text-gray-400 underline text-center" />}
         </div>
       </div>
@@ -97,9 +103,14 @@ export function StudyClient({ words, sessionId, studentId, studentName, returnTo
           <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Link href={returnTo} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
-            戻る
+          <Link href={recordsHref} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            学習記録を見る
           </Link>
+          {returnTo !== recordsHref && (
+            <Link href={returnTo} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
+              ホームへ戻る
+            </Link>
+          )}
           {showLogout && <LogoutButton className="text-xs text-gray-400 underline text-center" />}
         </div>
       </div>
