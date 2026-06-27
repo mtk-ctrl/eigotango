@@ -4,6 +4,7 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-06-24 | メール+パスワード認証に変更（メール送信不要／mailer_autoconfirm を Management API で OFF） |
 | 2026-06-24 | LINE LIFF 認証を廃止しウェブ認証へ・LINE は通知専用に |
 | 2026-06-23 | CLAUDE.md を AI CEO 運用モデルへ統合・再整理 |
 | 2026-06-23 | Cloudflare Workers + OpenNext 構成に移行（Pages 非推奨対応） |

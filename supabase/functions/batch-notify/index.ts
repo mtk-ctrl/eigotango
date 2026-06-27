@@ -16,8 +16,9 @@ Deno.serve(async (_req) => {
   const today = new Date().toISOString().split('T')[0]
   const appUrl = Deno.env.get('APP_URL') ?? 'https://eigotango.mtk551141.workers.dev'
   const lineToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-  const resendKey = Deno.env.get('RESEND_API_KEY')
-  const resendFrom = Deno.env.get('RESEND_FROM') ?? 'onboarding@resend.dev'
+  const brevoKey = Deno.env.get('BREVO_API_KEY')
+  const brevoFromEmail = Deno.env.get('BREVO_FROM_EMAIL') ?? 'mtk551141@gmail.com'
+  const brevoFromName = Deno.env.get('BREVO_FROM_NAME') ?? '英語タンゴ'
 
   // 今日復習が必要な学生を取得（通知チャネル・メール・LINE ID 含む）
   const { data: rows, error } = await supabase
@@ -78,18 +79,23 @@ Deno.serve(async (_req) => {
     }
   }
 
-  // メール送信（RESEND_API_KEY が設定されている場合のみ）
-  if (resendKey && emailTargets.length > 0) {
+  // メール送信（BREVO_API_KEY が設定されている場合のみ）
+  if (brevoKey && emailTargets.length > 0) {
     const subject = '今日の英単語が届いています📚'
-    const html = buildStudentEmailHtml(appUrl)
+    const htmlContent = buildStudentEmailHtml(appUrl)
     for (const email of emailTargets) {
-      const res = await fetch('https://api.resend.com/emails', {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${resendKey}`,
+          'api-key': brevoKey,
         },
-        body: JSON.stringify({ from: resendFrom, to: email, subject, html }),
+        body: JSON.stringify({
+          sender: { name: brevoFromName, email: brevoFromEmail },
+          to: [{ email }],
+          subject,
+          htmlContent,
+        }),
       })
       if (res.ok) emailSent++
       else console.error('[batch-notify] email error:', email, await res.text())

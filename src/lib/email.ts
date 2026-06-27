@@ -1,4 +1,4 @@
-// メール送信ユーティリティ（Resend API 使用・サーバー専用）
+// メール送信ユーティリティ（Brevo API 使用・サーバー専用）
 
 interface SendEmailOptions {
   to: string
@@ -7,20 +7,27 @@ interface SendEmailOptions {
 }
 
 export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY
+  const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
-    console.warn('[email] RESEND_API_KEY が未設定のためスキップ')
+    console.warn('[email] BREVO_API_KEY が未設定のためスキップ')
     return
   }
 
-  const from = process.env.RESEND_FROM ?? 'onboarding@resend.dev'
-  const res = await fetch('https://api.resend.com/emails', {
+  const fromEmail = process.env.BREVO_FROM_EMAIL ?? 'mtk551141@gmail.com'
+  const fromName = process.env.BREVO_FROM_NAME ?? '英語タンゴ'
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'api-key': apiKey,
     },
-    body: JSON.stringify({ from, to, subject, html }),
+    body: JSON.stringify({
+      sender: { name: fromName, email: fromEmail },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
   })
 
   if (!res.ok) {
