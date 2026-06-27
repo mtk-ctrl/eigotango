@@ -144,18 +144,16 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     ...newWordItems,
   ]
 
-  // 3. 誤答候補プール（同 tier 範囲の語から日本語の意味 / 英語をそれぞれ収集）
-  let poolQuery = admin.from('words').select('word, meaning').limit(120)
+  // 3. 誤答候補プール（同 tier 範囲の語・word と meaning のペア）
+  let poolQuery = admin.from('words').select('word, meaning').limit(200)
   if (!premium) poolQuery = poolQuery.eq('tier', 'free')
   const { data: poolRows } = await poolQuery
-  const meaningPool = (poolRows ?? []).map(p => p.meaning as string)
-  const englishPool = (poolRows ?? []).map(p => p.word as string)
+  const pool = (poolRows ?? []).map(p => ({ word: p.word as string, meaning: p.meaning as string }))
 
-  // 4. 各語をモード別の問題に変換
+  // 4. 各語をモード別の問題に変換（熟語はスペルを避け 4 択のみ）
   const questions: StudyQuestion[] = items.map(({ word, progress }) => {
-    const mode = pickMode(progress?.repetitions ?? 0)
-    const distractors = mode === 'en_to_ja_choice' ? meaningPool : englishPool
-    return buildQuestion(word, mode, distractors)
+    const mode = pickMode(progress?.repetitions ?? 0, word.is_idiom)
+    return buildQuestion(word, mode, pool)
   })
 
   // 5. 当日セッションを取得 or 作成
