@@ -1,11 +1,13 @@
 // Supabase Edge Function (Deno)
 // 毎朝 Cloudflare Workers Cron から呼ばれる
-// 今日復習が必要な学生に LINE または メールで通知を送る
+// 今日復習が必要な学生に LINE または メールで通知を送る。
+// 端末管理の子ども（managed_by 設定・合成メール）は本人に送らず、親に「○○さんの〜」を送る。
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const LINE_MULTICAST_URL = 'https://api.line.me/v2/bot/message/multicast'
 const LINE_BATCH_SIZE = 500
+const MANAGED_EMAIL_DOMAIN = '@managed.eigotango.local'
 
 Deno.serve(async (_req) => {
   const supabase = createClient(
@@ -20,43 +22,79 @@ Deno.serve(async (_req) => {
   const brevoFromEmail = Deno.env.get('BREVO_FROM_EMAIL') ?? 'mtk551141@gmail.com'
   const brevoFromName = Deno.env.get('BREVO_FROM_NAME') ?? '英語タンゴ'
 
-  // 今日復習が必要な学生を取得（通知チャネル・メール・LINE ID 含む）
+  // 今日復習が必要な学生を取得（通知チャネル・メール・LINE ID・端末管理フラグ・名前）
   const { data: rows, error } = await supabase
     .from('user_word_progress')
-    .select('student_id, profiles!inner(line_user_id, email, notification_channel)')
+    .select('student_id, profiles!inner(line_user_id, email, notification_channel, managed_by, display_name, line_display_name)')
     .lte('next_review_date', today)
 
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 500 })
   }
 
-  // 学生ごとに通知先を集約（重複なし）
+  // 学生ごとに集約（重複なし）
   const studentMap = new Map<string, {
     line_user_id: string | null
     email: string | null
     channel: string
+    managed_by: string | null
+    name: string
   }>()
   for (const row of rows ?? []) {
     if (studentMap.has(row.student_id)) continue
-    const p = row.profiles as { line_user_id: string | null; email: string | null; notification_channel: string }
+    const p = row.profiles as {
+      line_user_id: string | null
+      email: string | null
+      notification_channel: string
+      managed_by: string | null
+      display_name: string | null
+      line_display_name: string | null
+    }
     studentMap.set(row.student_id, {
       line_user_id: p.line_user_id,
       email: p.email,
       channel: p.notification_channel ?? 'email',
+      managed_by: p.managed_by,
+      name: p.line_display_name ?? p.display_name ?? 'お子さま',
     })
   }
 
   const students = [...studentMap.values()]
 
-  // LINE 通知対象
+  // LINE 通知対象（本人ログインの学生のみ。端末管理の子は line_user_id を持たない）
   const lineUserIds = students
     .filter(s => (s.channel === 'line' || s.channel === 'both') && s.line_user_id)
     .map(s => s.line_user_id as string)
 
-  // メール通知対象
-  const emailTargets = students
-    .filter(s => (s.channel === 'email' || s.channel === 'both') && s.email)
-    .map(s => s.email as string)
+  // メール通知対象（合成メールは除外）。{ email, name } で個別本文を出し分け。
+  const emailTargets: { email: string; name: string | null }[] = []
+
+  // (1) 本人ログインの学生 → 本人のメールへ汎用リマインド
+  for (const s of students) {
+    if (s.managed_by) continue
+    if (!(s.channel === 'email' || s.channel === 'both')) continue
+    if (!s.email || s.email.endsWith(MANAGED_EMAIL_DOMAIN)) continue
+    emailTargets.push({ email: s.email, name: null })
+  }
+
+  // (2) 端末管理の子 → 親のメールへ「○○さんの〜」リマインド
+  const managedKids = students.filter(s => s.managed_by)
+  if (managedKids.length > 0) {
+    const parentIds = [...new Set(managedKids.map(s => s.managed_by as string))]
+    const { data: parents } = await supabase
+      .from('profiles')
+      .select('id, email, notification_channel')
+      .in('id', parentIds)
+    const parentMap = new Map((parents ?? []).map(p => [p.id, p]))
+    for (const kid of managedKids) {
+      const parent = parentMap.get(kid.managed_by as string)
+      const ch = parent?.notification_channel ?? 'email'
+      if (!parent?.email) continue
+      if (!(ch === 'email' || ch === 'both')) continue
+      if (parent.email.endsWith(MANAGED_EMAIL_DOMAIN)) continue
+      emailTargets.push({ email: parent.email, name: kid.name })
+    }
+  }
 
   let lineSent = 0
   let emailSent = 0
@@ -81,9 +119,10 @@ Deno.serve(async (_req) => {
 
   // メール送信（BREVO_API_KEY が設定されている場合のみ）
   if (brevoKey && emailTargets.length > 0) {
-    const subject = '今日の英単語が届いています📚'
-    const htmlContent = buildStudentEmailHtml(appUrl)
-    for (const email of emailTargets) {
+    for (const target of emailTargets) {
+      const subject = target.name
+        ? `${target.name}さんの今日の英単語が届いています📚`
+        : '今日の英単語が届いています📚'
       const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
@@ -92,13 +131,13 @@ Deno.serve(async (_req) => {
         },
         body: JSON.stringify({
           sender: { name: brevoFromName, email: brevoFromEmail },
-          to: [{ email }],
+          to: [{ email: target.email }],
           subject,
-          htmlContent,
+          htmlContent: buildStudentEmailHtml(appUrl, target.name),
         }),
       })
       if (res.ok) emailSent++
-      else console.error('[batch-notify] email error:', email, await res.text())
+      else console.error('[batch-notify] email error:', target.email, await res.text())
     }
   }
 
@@ -165,7 +204,10 @@ function buildLineMessage(appUrl: string) {
   }
 }
 
-function buildStudentEmailHtml(appUrl: string): string {
+function buildStudentEmailHtml(appUrl: string, childName: string | null): string {
+  const heading = childName
+    ? `${childName}さんの今日の英単語が届いています！`
+    : '今日の英単語が届いています！'
   return `<!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -179,7 +221,7 @@ function buildStudentEmailHtml(appUrl: string): string {
       <h1 style="color:white;margin:0;font-size:24px;">英語タンゴ 📚</h1>
     </div>
     <div style="padding:32px;">
-      <h2 style="color:#333;margin-top:0;">今日の英単語が届いています！</h2>
+      <h2 style="color:#333;margin-top:0;">${heading}</h2>
       <p style="color:#666;line-height:1.6;">毎日続けると着実に覚えられるよ 📖</p>
       <div style="text-align:center;margin-top:32px;">
         <a href="${appUrl}/study"

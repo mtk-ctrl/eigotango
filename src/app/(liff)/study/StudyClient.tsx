@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { ProgressBar } from '@/components/study/ProgressBar'
 import { WordCard } from '@/components/study/WordCard'
 import { SpellingInput } from '@/components/study/SpellingInput'
@@ -14,12 +15,16 @@ import type { StudyWordItem, SpellingResult } from '@/types/api'
 interface Props {
   words: StudyWordItem[]
   sessionId: string
-  userRole: 'student' | 'parent'
+  studentId: string
+  studentName?: string   // 親が子の代わりに学習しているとき表示
+  returnTo: string       // 「やめる」「ダッシュボードへ」の戻り先
+  showLogout: boolean    // 本人ログイン時のみログアウトを出す
 }
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ words, sessionId, userRole }: Props) {
+export function StudyClient({ words, sessionId, studentId, studentName, returnTo, showLogout }: Props) {
+  const router = useRouter()
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('input')
   const [lastResult, setLastResult] = useState<SpellingResult | null>(null)
@@ -34,20 +39,30 @@ export function StudyClient({ words, sessionId, userRole }: Props) {
     setLastResult({ type, input })
     setQualities(prev => [...prev, quality])
     setPhase('result')
-    await recordAnswer({ sessionId, wordId: current.word.id, quality })
-  }, [current, sessionId])
+    await recordAnswer({ studentId, sessionId, wordId: current.word.id, quality })
+  }, [current, sessionId, studentId])
 
   const handleNext = useCallback(async () => {
     if (isLast) {
       const correct = qualities.filter(q => q >= 3).length
-      await completeSession(sessionId, correct, words.length)
+      await completeSession(studentId, sessionId, correct, words.length)
       setPhase('complete')
     } else {
       setIndex(i => i + 1)
       setPhase('input')
       setLastResult(null)
     }
-  }, [isLast, sessionId, qualities, words.length])
+  }, [isLast, sessionId, studentId, qualities, words.length])
+
+  const handleQuit = useCallback(() => {
+    if (index === 0 && phase === 'input') {
+      router.push(returnTo)
+      return
+    }
+    if (confirm('学習を中断しますか？\nここまでの回答は保存されています。')) {
+      router.push(returnTo)
+    }
+  }, [router, returnTo, index, phase])
 
   if (words.length === 0) {
     return (
@@ -58,13 +73,10 @@ export function StudyClient({ words, sessionId, userRole }: Props) {
           <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Link href="/progress" className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
-            学習記録を見る
+          <Link href={returnTo} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            戻る
           </Link>
-          <Link href={userRole === 'parent' ? '/parent' : '/progress'} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
-            ダッシュボードへ
-          </Link>
-          <LogoutButton className="text-xs text-gray-400 underline text-center" />
+          {showLogout && <LogoutButton className="text-xs text-gray-400 underline text-center" />}
         </div>
       </div>
     )
@@ -83,18 +95,12 @@ export function StudyClient({ words, sessionId, userRole }: Props) {
             <span className="font-bold text-green-600">{correct}語</span> 正解
           </p>
           <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
-          {userRole === 'student' && (
-            <p className="text-gray-400 text-xs mt-6">保護者に結果を通知しました</p>
-          )}
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
-          <Link href="/progress" className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
-            学習記録を見る
+          <Link href={returnTo} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
+            戻る
           </Link>
-          <Link href={userRole === 'parent' ? '/parent' : '/progress'} className="py-3 bg-gray-100 text-gray-600 rounded-xl text-center text-sm">
-            ダッシュボードへ
-          </Link>
-          <LogoutButton className="text-xs text-gray-400 underline text-center" />
+          {showLogout && <LogoutButton className="text-xs text-gray-400 underline text-center" />}
         </div>
       </div>
     )
@@ -102,7 +108,24 @@ export function StudyClient({ words, sessionId, userRole }: Props) {
 
   return (
     <div className="min-h-dvh flex flex-col p-4 gap-4">
-      <ProgressBar current={index + 1} total={words.length} />
+      {/* ヘッダー: やめる + 進捗 */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleQuit}
+          className="shrink-0 text-sm text-gray-500 bg-gray-100 rounded-lg px-3 py-1.5 active:scale-95 transition-transform"
+          aria-label="学習をやめる"
+        >
+          ← やめる
+        </button>
+        <div className="flex-1">
+          <ProgressBar current={index + 1} total={words.length} />
+        </div>
+      </div>
+
+      {studentName && (
+        <p className="text-xs text-gray-400 -mt-2">{studentName}さんの学習</p>
+      )}
+
       <WordCard word={current.word} />
 
       {phase === 'input' && (

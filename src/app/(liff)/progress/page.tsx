@@ -1,7 +1,8 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { LogoutButton } from '@/components/LogoutButton'
+import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 
 function formatDate(dateStr: string): string {
   const DOW = ['日', '月', '火', '水', '木', '金', '土']
@@ -9,34 +10,66 @@ function formatDate(dateStr: string): string {
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DOW[d.getUTCDay()]})`
 }
 
-export default async function ProgressPage() {
+// 親がこの子（managed or paired）を持っているか
+async function parentOwnsChild(parentId: string, childId: string): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data: managed } = await admin
+    .from('profiles').select('id').eq('id', childId).eq('managed_by', parentId).maybeSingle()
+  if (managed) return true
+  const { data: rel } = await admin
+    .from('student_parent_relations').select('id')
+    .eq('parent_id', parentId).eq('student_id', childId).not('paired_at', 'is', null).maybeSingle()
+  return !!rel
+}
+
+export default async function ProgressPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ child?: string }>
+}) {
+  const { child } = await searchParams
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
+  const { data: myProfile } = await supabase
     .from('profiles')
-    .select('role')
+    .select('role, daily_goal, daily_goal_locked')
     .eq('id', user.id)
     .single()
+  const isParent = myProfile?.role === 'parent'
 
-  const isParent = profile?.role === 'parent'
+  // 対象の student を決定
+  let studentId = user.id
+  let childName: string | undefined
+  const viewingChild = !!child && child !== user.id
+  if (viewingChild) {
+    if (!(await parentOwnsChild(user.id, child!))) redirect('/parent')
+    studentId = child!
+    const admin = createAdminClient()
+    const { data: cp } = await admin
+      .from('profiles').select('display_name, line_display_name').eq('id', studentId).single()
+    childName = cp?.line_display_name ?? cp?.display_name ?? '子ども'
+  }
+
+  // 子を見るときは admin、自分のときは RLS クライアントで十分
+  const db = viewingChild ? createAdminClient() : supabase
 
   const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0]
 
   const [progressRes, wordsRes, sessionsRes] = await Promise.all([
-    supabase
+    db
       .from('user_word_progress')
       .select('repetitions, word:words(grade)')
-      .eq('student_id', user.id),
-    supabase
+      .eq('student_id', studentId),
+    db
       .from('words')
       .select('grade'),
-    supabase
+    db
       .from('study_sessions')
       .select('session_date, total_words, correct_words, completed_at')
-      .eq('student_id', user.id)
+      .eq('student_id', studentId)
       .gte('session_date', sevenDaysAgo)
       .order('session_date', { ascending: false }),
   ])
@@ -56,13 +89,22 @@ export default async function ProgressPage() {
     total: allWords.filter(w => w.grade === grade).length,
   }))
 
+  const studyHref = viewingChild ? `/study?child=${studentId}` : '/study'
+
   return (
     <div className="min-h-dvh bg-gray-50 pb-8">
       {/* ヘッダー */}
       <div className="bg-green-500 text-white px-4 pt-10 pb-6">
         <div className="flex justify-between items-start">
-          <h1 className="text-xl font-bold">学習進捗</h1>
-          <LogoutButton className="text-xs text-white/70 underline mt-1" />
+          <div>
+            {viewingChild && (
+              <Link href="/parent" className="text-xs text-white/70 underline">← ダッシュボード</Link>
+            )}
+            <h1 className="text-xl font-bold mt-1">
+              {viewingChild ? `${childName}さんの記録` : '学習進捗'}
+            </h1>
+          </div>
+          {!viewingChild && <LogoutButton className="text-xs text-white/70 underline mt-1" />}
         </div>
       </div>
 
@@ -92,6 +134,15 @@ export default async function ProgressPage() {
             </div>
           </div>
         </div>
+
+        {/* 1日の問題数（自分の進捗を見ている本人のみ） */}
+        {!viewingChild && (
+          <SelfGoalSetting
+            current={myProfile?.daily_goal ?? 10}
+            locked={myProfile?.daily_goal_locked ?? false}
+            max={20}
+          />
+        )}
 
         {/* 学年別内訳 */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
@@ -145,12 +196,19 @@ export default async function ProgressPage() {
         {/* ナビゲーション */}
         <div className="flex gap-3">
           <Link
-            href="/study"
+            href={studyHref}
             className="flex-1 py-4 bg-green-500 text-white rounded-xl text-center font-bold active:scale-95 transition-transform"
           >
             今日の学習へ →
           </Link>
-          {isParent ? (
+          {viewingChild ? (
+            <Link
+              href="/parent"
+              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
+            >
+              ダッシュボード
+            </Link>
+          ) : isParent ? (
             <Link
               href="/parent"
               className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
@@ -162,7 +220,7 @@ export default async function ProgressPage() {
               href="/pairing"
               className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
             >
-              🔗 紐付け
+              🔗 保護者と連携
             </Link>
           )}
         </div>

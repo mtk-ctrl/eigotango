@@ -25,6 +25,26 @@ export async function setUserRole(role: 'student' | 'parent') {
   redirect(role === 'parent' ? '/parent' : '/study')
 }
 
+// 本人の1日の問題数を設定（親がロックしている場合は変更不可 = 親優先）
+export async function setMyDailyGoal(goal: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('daily_goal_locked')
+    .eq('id', user.id)
+    .single()
+  if (profile?.daily_goal_locked) {
+    throw new Error('保護者が設定しているため変更できません')
+  }
+
+  const clamped = Math.min(Math.max(Math.round(goal), 1), 100)
+  await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
+}
+
 // LINE user_id からユーザーを検索（LINE Webhook / 通知連携用）
 export async function findUserByLineId(lineUserId: string) {
   const admin = createAdminClient()
