@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
+import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
 import type { Word, UserWordProgress } from '@/types/database'
 import type { TodayStudyResult } from '@/types/api'
 
@@ -139,7 +140,7 @@ export async function recordAnswer({
   ])
 }
 
-// セッション完了を記録 + 親へ LINE 通知
+// セッション完了を記録 + 親へ通知（LINE / メール / 両方）
 export async function completeSession(
   sessionId: string,
   correctCount: number,
@@ -161,13 +162,17 @@ export async function completeSession(
   try {
     const { data: relation } = await supabase
       .from('student_parent_relations')
-      .select('profiles!parent_id(line_user_id)')
+      .select('profiles!parent_id(line_user_id, email, notification_channel)')
       .eq('student_id', user.id)
       .not('paired_at', 'is', null)
       .single()
 
-    const parentLineId = (relation?.profiles as unknown as { line_user_id: string | null } | null)?.line_user_id
-    if (!parentLineId) return
+    const parentProfile = (relation?.profiles as unknown as {
+      line_user_id: string | null
+      email: string | null
+      notification_channel: string
+    } | null)
+    if (!parentProfile) return
 
     const { data: myProfile } = await supabase
       .from('profiles')
@@ -177,18 +182,31 @@ export async function completeSession(
 
     const name = myProfile?.line_display_name ?? myProfile?.display_name ?? '子ども'
     const pct = totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0
+    const channel = parentProfile.notification_channel ?? 'email'
 
-    await sendLinePushMessage(parentLineId, [{
-      type: 'text',
-      text: [
-        `📊 ${name}さんの今日の学習が完了しました！`,
-        '',
-        `✅ 正解: ${correctCount} / ${totalCount}語`,
-        `📈 正答率: ${pct}%`,
-        '',
-        'よく頑張りました 👏',
-      ].join('\n'),
-    }])
+    // LINE 通知
+    if ((channel === 'line' || channel === 'both') && parentProfile.line_user_id) {
+      await sendLinePushMessage(parentProfile.line_user_id, [{
+        type: 'text',
+        text: [
+          `📊 ${name}さんの今日の学習が完了しました！`,
+          '',
+          `✅ 正解: ${correctCount} / ${totalCount}語`,
+          `📈 正答率: ${pct}%`,
+          '',
+          'よく頑張りました 👏',
+        ].join('\n'),
+      }])
+    }
+
+    // メール通知
+    if ((channel === 'email' || channel === 'both') && parentProfile.email) {
+      await sendEmail({
+        to: parentProfile.email,
+        subject: `📊 ${name}さんが今日の英語学習を完了しました！`,
+        html: buildParentNotificationHtml({ name, correctCount, totalCount, pct }),
+      })
+    }
 
     await supabase.from('study_sessions')
       .update({ parent_notified_at: now })

@@ -27,7 +27,7 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-06-27 | メール通知を追加（Resend API・LINE/メール/両方を profiles.notification_channel で切替可能） |
 | 2026-06-24 | 本番 words テーブルが空で /study が即「完了」→ 50語を Management API で投入（db push がスキップされていた） |
 | 2026-06-24 | ログアウトボタン追加（全認証済み画面）＋ 3パターン対応（親が直接 /study へアクセス可能） |
 | 2026-06-24 | メール+パスワード認証に変更（メール送信不要／mailer_autoconfirm を Management API で OFF） |
-| 2026-06-24 | LINE LIFF 認証を廃止しウェブ認証へ・LINE は通知専用に |
