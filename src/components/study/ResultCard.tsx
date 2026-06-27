@@ -1,9 +1,8 @@
-import type { Word } from '@/types/database'
-import type { SpellingResult } from '@/types/api'
+import type { StudyQuestion, SpellingResult } from '@/types/api'
 import { SpeakButton } from './SpeakButton'
 
 interface Props {
-  word: Word
+  question: StudyQuestion
   result: SpellingResult
   onNext: () => void
   isLast: boolean
@@ -15,8 +14,17 @@ const CONFIG = {
   wrong:   { bg: 'bg-red-50', border: 'border-red-200', label: '不正解', emoji: '❌' },
 }
 
-export function ResultCard({ word, result, onNext, isLast }: Props) {
+export function ResultCard({ question, result, onNext, isLast }: Props) {
   const c = CONFIG[result.type]
+  const { word, mode } = question
+
+  // 日本語を答えるモードは正解＝日本語、英語を答えるモードは正解＝英語
+  const isJaAnswer = mode === 'en_to_ja_choice'
+  const mainAnswer = isJaAnswer ? word.meaning : word.word
+  // 英語の別解（many に対する a lot of など）
+  const otherAnswers = isJaAnswer
+    ? []
+    : (word.answers_en ?? []).filter(a => a.toLowerCase() !== word.word.toLowerCase())
 
   return (
     <div className="flex flex-col gap-4">
@@ -30,9 +38,18 @@ export function ResultCard({ word, result, onNext, isLast }: Props) {
           </p>
         )}
 
-        <p className="text-3xl font-bold tracking-wide mb-3">{word.word}</p>
-        {word.reading && (
-          <p className="text-gray-500 text-sm mb-3">{word.reading}</p>
+        <p className="text-3xl font-bold tracking-wide mb-1 break-words">{mainAnswer}</p>
+        {/* 答えの反対側（英語問題なら日本語、日本語問題なら英語）も補助表示 */}
+        <p className="text-gray-500 text-base mb-2">
+          {isJaAnswer ? word.word : word.meaning}
+        </p>
+        {otherAnswers.length > 0 && (
+          <p className="text-gray-500 text-sm mb-2">
+            他の正解: {otherAnswers.join(' / ')}
+          </p>
+        )}
+        {word.reading && isJaAnswer === false && (
+          <p className="text-gray-400 text-sm mb-3">{word.reading}</p>
         )}
         <SpeakButton word={word.word} />
       </div>

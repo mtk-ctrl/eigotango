@@ -46,16 +46,21 @@ export interface Subscription {
   updated_at: string
 }
 
+export type WordTier = 'free' | 'premium'
+
 export interface Word {
   id: string
-  word: string
+  word: string                   // 代表的な英語答え（表示・選択肢用）
   reading: string | null
-  meaning: string
+  meaning: string                // 日本語の意味
   example_en: string | null
   example_ja: string | null
   grade: Grade | null
   level: WordLevel | null
   tags: string[] | null
+  answers_en: string[] | null    // 受理する英語答え（複数可: many / a lot of）
+  is_idiom: boolean              // 熟語かどうか
+  tier: WordTier                 // free（基本100語）/ premium（高校受験）
   created_at: string
 }
 
