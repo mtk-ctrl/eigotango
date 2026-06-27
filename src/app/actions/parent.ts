@@ -117,15 +117,19 @@ export async function removeChild(childId: string): Promise<void> {
     .eq('parent_id', parentId)
     .eq('student_id', childId)
 
-  // 端末管理の子はデータごと削除（auth.users 削除で profiles も CASCADE）
+  // 端末管理の子はデータごと削除（profiles は student_id FK に CASCADE が無いので先に消す）
   if (child?.managed_by === parentId) {
-    await admin.from('session_answers').delete().in(
-      'session_id',
-      (await admin.from('study_sessions').select('id').eq('student_id', childId)).data?.map(s => s.id) ?? [],
-    )
+    const { data: sessions } = await admin
+      .from('study_sessions')
+      .select('id')
+      .eq('student_id', childId)
+    const sessionIds = sessions?.map(s => s.id) ?? []
+    if (sessionIds.length > 0) {
+      await admin.from('session_answers').delete().in('session_id', sessionIds)
+    }
     await admin.from('study_sessions').delete().eq('student_id', childId)
     await admin.from('user_word_progress').delete().eq('student_id', childId)
-    await admin.auth.admin.deleteUser(childId)
+    await admin.auth.admin.deleteUser(childId)  // auth.users 削除で profiles も CASCADE
   }
 }
 

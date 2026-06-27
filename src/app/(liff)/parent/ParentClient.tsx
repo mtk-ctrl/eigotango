@@ -148,6 +148,10 @@ export function ParentClient({ parentName, parentDailyGoal, children, subscripti
                     )}
                   </div>
 
+                  {!child.isManaged && (
+                    <p className="text-[11px] text-gray-400 mt-2">学習は{child.name}さん自身の端末で行います</p>
+                  )}
+
                   {/* 操作 */}
                   <div className="flex gap-2 mt-3">
                     {child.isManaged && (

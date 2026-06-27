@@ -28,7 +28,8 @@ export function SelfGoalSetting({ current, locked, max }: Props) {
     )
   }
 
-  const options = OPTIONS.filter(n => n <= max)
+  const base = max > 20 ? [...OPTIONS, 30, 50] : OPTIONS
+  const options = base.filter(n => n <= max)
   const opts = options.includes(value) ? options : [...options, value].sort((a, b) => a - b)
 
   const save = async (n: number) => {

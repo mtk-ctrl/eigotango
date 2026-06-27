@@ -66,6 +66,18 @@ async function resolveBillingParent(studentId: string): Promise<string> {
   return rel?.parent_id ?? studentId
 }
 
+// student の課金プランに応じた1日の出題上限（無料20 / プレミアム100）
+export async function getStudentDailyMax(studentId: string): Promise<number> {
+  const admin = createAdminClient()
+  const billingParent = await resolveBillingParent(studentId)
+  const { data: sub } = await admin
+    .from('subscriptions')
+    .select('plan')
+    .eq('parent_id', billingParent)
+    .maybeSingle()
+  return sub?.plan === 'premium' ? PREMIUM_MAX : FREE_MAX
+}
+
 // student の1日の出題語数（daily_goal をプラン上限でクランプ）
 async function getDailyGoal(studentId: string): Promise<number> {
   const admin = createAdminClient()
@@ -75,14 +87,7 @@ async function getDailyGoal(studentId: string): Promise<number> {
     .eq('id', studentId)
     .single()
 
-  const billingParent = await resolveBillingParent(studentId)
-  const { data: sub } = await admin
-    .from('subscriptions')
-    .select('plan')
-    .eq('parent_id', billingParent)
-    .maybeSingle()
-
-  const max = sub?.plan === 'premium' ? PREMIUM_MAX : FREE_MAX
+  const max = await getStudentDailyMax(studentId)
   return Math.min(Math.max(profile?.daily_goal ?? 10, 1), max)
 }
 
