@@ -130,13 +130,30 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
       .eq('student_id', sid)
 
     const studiedIds = allProgress?.map(r => r.word_id) ?? []
-    let query = admin.from('words').select('*').order('grade').limit(remaining)
+    // 学年順に候補を多めに取得（'中1'<'中2'<'中3' は照合順序に依存せず安全）
+    let query = admin
+      .from('words')
+      .select('*')
+      .order('grade', { ascending: true })
+      .limit(Math.max(remaining * 5, 200))
     if (!premium) query = query.eq('tier', 'free')
     if (studiedIds.length > 0) {
       query = query.not('id', 'in', `(${studiedIds.join(',')})`)
     }
     const { data: newWords } = await query
-    newWordItems.push(...(newWords ?? []).map(w => ({ word: w as Word, progress: null })))
+
+    // 易しい順に並べ替え（学年→難易度）。a-c に難語が偏っていても難関は終盤に回る。
+    const gradeRank: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
+    const levelRank: Record<string, number> = { '基礎': 1, '標準': 2, '難関': 3 }
+    const sorted = (newWords ?? []).slice().sort((a, b) => {
+      const ga = gradeRank[(a as Word).grade ?? ''] ?? 4
+      const gb = gradeRank[(b as Word).grade ?? ''] ?? 4
+      if (ga !== gb) return ga - gb
+      const la = levelRank[(a as Word).level ?? ''] ?? 2
+      const lb = levelRank[(b as Word).level ?? ''] ?? 2
+      return la - lb
+    })
+    newWordItems.push(...sorted.slice(0, remaining).map(w => ({ word: w as Word, progress: null })))
   }
 
   const items: { word: Word; progress: UserWordProgress | null }[] = [
