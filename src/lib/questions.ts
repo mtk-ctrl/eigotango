@@ -3,6 +3,12 @@ import { levenshtein, type SpellingResultType } from '@/lib/levenshtein'
 import type { Word } from '@/types/database'
 import type { QuestionMode, StudyQuestion } from '@/types/api'
 
+// 誤答候補の素材（同 tier の他の語）
+export interface PoolItem {
+  word: string
+  meaning: string
+}
+
 // 英語答えの正規化（小文字化・連続空白の圧縮・前後空白除去・末尾句読点除去）
 export function normalizeEn(s: string): string {
   return s
@@ -12,9 +18,28 @@ export function normalizeEn(s: string): string {
     .trim()
 }
 
+// 日本語の意味を語義トークンに分解（「、」「,」「/」などで区切る）
+function meaningTokens(meaning: string): Set<string> {
+  return new Set(
+    meaning
+      .split(/[、,，/／・;；]/)
+      .map(t => t.replace(/[（(].*?[)）]/g, '').trim())
+      .filter(Boolean),
+  )
+}
+
+// 2つの意味が語義を共有するか（= 同義の可能性 → 誤答に使わない）
+function sharesMeaning(a: string, b: string): boolean {
+  const ta = meaningTokens(a)
+  for (const t of meaningTokens(b)) if (ta.has(t)) return true
+  return false
+}
+
 // SM-2 の習熟段階から出題モードを決定（同じ語が日をまたいで別形式で再出題される）
-export function pickMode(repetitions: number): QuestionMode {
+// 熟語はスペル入力が酷なので 4 択のみにする。
+export function pickMode(repetitions: number, isIdiom: boolean): QuestionMode {
   if (repetitions <= 0) return 'en_to_ja_choice'
+  if (isIdiom) return 'ja_to_en_choice'
   if (repetitions <= 2) return 'ja_to_en_choice'
   return 'ja_to_en_spell'
 }
@@ -29,12 +54,12 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
-// 正解 + 候補プールから4択を作る（重複・正解と同義のものは除外）
-function buildChoices(correct: string, pool: string[], exclude: string[]): string[] {
+// 正解 + 候補から4択を作る（重複・除外語を除く）
+function buildChoices(correct: string, candidates: string[], exclude: string[]): string[] {
   const excludeSet = new Set([correct, ...exclude].map(s => s.toLowerCase()))
   const seen = new Set<string>([correct.toLowerCase()])
   const distractors: string[] = []
-  for (const cand of shuffle(pool)) {
+  for (const cand of shuffle(candidates)) {
     const key = cand.toLowerCase()
     if (excludeSet.has(key) || seen.has(key)) continue
     seen.add(key)
@@ -44,13 +69,15 @@ function buildChoices(correct: string, pool: string[], exclude: string[]): strin
   return shuffle([correct, ...distractors])
 }
 
-// 1問を組み立てる。distractors は呼び出し側が用意した候補文字列の配列。
+// 1問を組み立てる。pool は同 tier の他の語（誤答の素材）。
 export function buildQuestion(
   word: Word,
   mode: QuestionMode,
-  distractors: string[],
+  pool: PoolItem[],
 ): StudyQuestion {
   const answers = (word.answers_en && word.answers_en.length > 0) ? word.answers_en : [word.word]
+  // 正解と語義が重なる語は誤答に使わない（big/large, glad/happy などの取り違え防止）
+  const safe = pool.filter(p => !sharesMeaning(p.meaning, word.meaning))
 
   if (mode === 'en_to_ja_choice') {
     return {
@@ -58,7 +85,7 @@ export function buildQuestion(
       mode,
       prompt: word.word,
       isIdiom: word.is_idiom,
-      choices: buildChoices(word.meaning, distractors, []),
+      choices: buildChoices(word.meaning, safe.map(p => p.meaning), []),
       correctChoice: word.meaning,
       acceptableAnswers: [],
       word,
@@ -72,7 +99,7 @@ export function buildQuestion(
       prompt: word.meaning,
       isIdiom: word.is_idiom,
       // 誤答に同義語が混ざらないよう answers をすべて除外
-      choices: buildChoices(word.word, distractors, answers),
+      choices: buildChoices(word.word, safe.map(p => p.word), answers),
       correctChoice: word.word,
       acceptableAnswers: [],
       word,
@@ -92,9 +119,8 @@ export function buildQuestion(
   }
 }
 
-// スペル入力の長さに応じた許容編集距離（短語は厳しく、長い熟語は少し緩める）
+// スペル入力の長さに応じた許容編集距離（短語は厳しく、長い語は少し緩める）
 function tolerance(len: number): number {
-  if (len <= 5) return 1
   if (len <= 10) return 1
   return 2
 }

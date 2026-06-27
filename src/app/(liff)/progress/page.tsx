@@ -56,17 +56,21 @@ export default async function ProgressPage({
   // 子を見るときは admin、自分のときは RLS クライアントで十分
   const db = viewingChild ? createAdminClient() : supabase
 
+  // 利用可能な語の範囲（無料=基本100語のみ / プレミアム=全語）で分母を出す
+  const premium = (await getStudentDailyMax(studentId)) > 20
+
   const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
     .toISOString().split('T')[0]
+
+  const wordsQuery = db.from('words').select('grade')
+  if (!premium) wordsQuery.eq('tier', 'free')
 
   const [progressRes, wordsRes, sessionsRes] = await Promise.all([
     db
       .from('user_word_progress')
       .select('repetitions, word:words(grade)')
       .eq('student_id', studentId),
-    db
-      .from('words')
-      .select('grade'),
+    wordsQuery,
     db
       .from('study_sessions')
       .select('session_date, total_words, correct_words, completed_at')
