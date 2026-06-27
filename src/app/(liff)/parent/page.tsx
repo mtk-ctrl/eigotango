@@ -10,13 +10,13 @@ export default async function ParentPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, line_display_name, display_name')
+    .select('role, line_display_name, display_name, daily_goal')
     .eq('id', user.id)
     .single()
 
   if (profile?.role !== 'parent') redirect('/study')
 
-  const [students, subscription] = await Promise.all([
+  const [children, subscription] = await Promise.all([
     getChildrenData(),
     supabase
       .from('subscriptions')
@@ -29,7 +29,8 @@ export default async function ParentPage() {
   return (
     <ParentClient
       parentName={profile.line_display_name ?? profile.display_name ?? ''}
-      students={students}
+      parentDailyGoal={profile.daily_goal ?? 10}
+      children={children}
       subscription={subscription ?? { plan: 'free', status: 'active', current_period_end: null }}
     />
   )

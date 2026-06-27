@@ -18,6 +18,9 @@ export interface Profile {
   notification_channel: NotificationChannel
   notification_time: string  // 'HH:MM:SS'
   timezone: string
+  daily_goal: number             // 1日の出題語数
+  daily_goal_locked: boolean     // 親が設定したらロック（本人は変更不可）
+  managed_by: string | null      // 親が端末上で管理する子ども（ログイン不要）の親 ID
   created_at: string
 }
 
