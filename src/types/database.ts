@@ -6,13 +6,16 @@ export type SubscriptionPlan = 'free' | 'premium'
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due'
 export type Grade = '中1' | '中2' | '中3'
 export type WordLevel = '基礎' | '標準' | '難関'
+export type NotificationChannel = 'line' | 'email' | 'both'
 
 export interface Profile {
   id: string
   role: UserRole
   display_name: string | null
+  email: string | null
   line_user_id: string | null
   line_display_name: string | null
+  notification_channel: NotificationChannel
   notification_time: string  // 'HH:MM:SS'
   timezone: string
   created_at: string

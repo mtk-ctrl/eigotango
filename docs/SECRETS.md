@@ -26,6 +26,8 @@ Workers & Pages → eigotango → Settings → Variables and secrets
 | `SUPABASE_SERVICE_ROLE_KEY` | Secret | Server Action 用 RLS バイパス鍵 |
 | `LINE_CHANNEL_SECRET` | Secret | LINE Webhook 署名検証 |
 | `LINE_CHANNEL_ACCESS_TOKEN` | Secret | LINE Push 送信 |
+| `RESEND_API_KEY` | Secret | メール送信（resend.com で取得） |
+| `RESEND_FROM` | Var | 送信元メールアドレス（例: `英語タンゴ <noreply@example.com>`）未設定時は `onboarding@resend.dev` |
 | `STRIPE_SECRET_KEY` | Secret | Stripe Checkout 作成 |
 | `STRIPE_WEBHOOK_SECRET` | Secret | Stripe Webhook 署名検証 |
 | `STRIPE_PREMIUM_PRICE_ID` | Var | プレミアムプランの Price ID |
@@ -37,6 +39,17 @@ Workers → eigotango-cron → Settings → Variables
 | シークレット名 | 用途 |
 |---|---|
 | `SUPABASE_SERVICE_ROLE_KEY` | batch-notify から Supabase を叩くための鍵 |
+
+## Supabase Edge Function シークレット（batch-notify 用）
+
+Supabase Dashboard → Edge Functions → batch-notify → Secrets
+または `supabase secrets set` コマンドで設定。
+
+| シークレット名 | 用途 |
+|---|---|
+| `RESEND_API_KEY` | メール送信（Next.js 側と同じ値） |
+| `RESEND_FROM` | 送信元メールアドレス（未設定時は `onboarding@resend.dev`） |
+| `APP_URL` | 学習リンクの URL（`https://eigotango.mtk551141.workers.dev`） |
 
 ## オーナーの初回セットアップ（これだけ）
 
