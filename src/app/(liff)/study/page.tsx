@@ -43,18 +43,18 @@ export default async function StudyPage({
 
   // 認可は getTodayStudyWords 内（authorizeStudent）で行う。失敗時は戻す。
   let sessionId = ''
-  let words: Awaited<ReturnType<typeof getTodayStudyWords>>['words'] = []
+  let questions: Awaited<ReturnType<typeof getTodayStudyWords>>['questions'] = []
   try {
     const res = await getTodayStudyWords(studentId)
     sessionId = res.sessionId
-    words = res.words
+    questions = res.questions
   } catch {
     redirect(returnTo)
   }
 
   return (
     <StudyClient
-      words={words}
+      questions={questions}
       sessionId={sessionId}
       studentId={studentId}
       studentName={studentName}

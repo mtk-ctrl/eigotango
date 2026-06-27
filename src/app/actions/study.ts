@@ -4,8 +4,9 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
+import { buildQuestion, pickMode } from '@/lib/questions'
 import type { Word, UserWordProgress } from '@/types/database'
-import type { TodayStudyResult } from '@/types/api'
+import type { TodayStudyResult, StudyQuestion } from '@/types/api'
 
 // プラン別の1日の出題上限（daily_goal をこの範囲にクランプ）
 const FREE_MAX = 20
@@ -91,16 +92,18 @@ async function getDailyGoal(studentId: string): Promise<number> {
   return Math.min(Math.max(profile?.daily_goal ?? 10, 1), max)
 }
 
-// 今日の学習単語リストを取得（復習 + 新規）
+// 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
 // studentId 省略時はログイン中の本人。指定時は親が子の代わりに取得（要認可）。
 export async function getTodayStudyWords(studentId?: string): Promise<TodayStudyResult> {
   const sid = studentId ?? (await currentUserId())
-  if (!sid) return { sessionId: '', words: [] }
+  if (!sid) return { sessionId: '', questions: [] }
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
   const today = new Date().toISOString().split('T')[0]
   const limit = await getDailyGoal(sid)
+  // 無料は基本100語（tier=free）のみ、プレミアムは全語
+  const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
   // 1. 復習単語（next_review_date が今日以前）
   const { data: progressRows } = await admin
@@ -111,7 +114,11 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     .order('next_review_date')
     .limit(limit)
 
-  const reviewItems = progressRows ?? []
+  // 無料ユーザーは念のため premium 語を除外（過去にプレミアムだった場合の保険）
+  const reviewItems = (progressRows ?? []).filter(r => {
+    const w = r.word as Word | null
+    return w && (premium || w.tier === 'free')
+  })
   const remaining = limit - reviewItems.length
 
   // 2. 新規単語（まだ学習していない）
@@ -124,6 +131,7 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
 
     const studiedIds = allProgress?.map(r => r.word_id) ?? []
     let query = admin.from('words').select('*').order('grade').limit(remaining)
+    if (!premium) query = query.eq('tier', 'free')
     if (studiedIds.length > 0) {
       query = query.not('id', 'in', `(${studiedIds.join(',')})`)
     }
@@ -131,7 +139,26 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     newWordItems.push(...(newWords ?? []).map(w => ({ word: w as Word, progress: null })))
   }
 
-  // 3. 当日セッションを取得 or 作成
+  const items: { word: Word; progress: UserWordProgress | null }[] = [
+    ...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })),
+    ...newWordItems,
+  ]
+
+  // 3. 誤答候補プール（同 tier 範囲の語から日本語の意味 / 英語をそれぞれ収集）
+  let poolQuery = admin.from('words').select('word, meaning').limit(120)
+  if (!premium) poolQuery = poolQuery.eq('tier', 'free')
+  const { data: poolRows } = await poolQuery
+  const meaningPool = (poolRows ?? []).map(p => p.meaning as string)
+  const englishPool = (poolRows ?? []).map(p => p.word as string)
+
+  // 4. 各語をモード別の問題に変換
+  const questions: StudyQuestion[] = items.map(({ word, progress }) => {
+    const mode = pickMode(progress?.repetitions ?? 0)
+    const distractors = mode === 'en_to_ja_choice' ? meaningPool : englishPool
+    return buildQuestion(word, mode, distractors)
+  })
+
+  // 5. 当日セッションを取得 or 作成
   let sessionId = ''
   const { data: existingSession } = await admin
     .from('study_sessions')
@@ -151,13 +178,7 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     sessionId = newSession?.id ?? ''
   }
 
-  return {
-    sessionId,
-    words: [
-      ...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })),
-      ...newWordItems,
-    ],
-  }
+  return { sessionId, questions }
 }
 
 // 1問分の回答を記録して SM-2 を更新
