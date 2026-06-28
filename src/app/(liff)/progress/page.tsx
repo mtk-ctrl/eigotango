@@ -103,6 +103,7 @@ export default async function ProgressPage({
         <h1 className="mt-1 text-2xl font-bold text-gray-800">
           {viewingChild ? `${childName}さんのきろく` : 'きろく'}
         </h1>
+        <p className="text-sm text-gray-400">これまでの学習の成果</p>
       </header>
 
       <div className="px-5 mt-4 flex flex-col gap-4">
@@ -209,7 +210,7 @@ export default async function ProgressPage({
         )}
       </div>
 
-      {!viewingChild && <BottomNav />}
+      {!viewingChild && <BottomNav role={isStudent ? 'student' : 'parent'} />}
     </div>
   )
 }

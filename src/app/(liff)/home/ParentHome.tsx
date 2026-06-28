@@ -59,16 +59,23 @@ export function ParentHome({ name, premium, children }: Props) {
 
         {/* 自分でも学習する（副次・控えめ） */}
         <section>
-          <Link
-            href="/study"
-            className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-sm active:scale-[0.99] transition-transform"
-          >
-            <div>
-              <p className="font-bold text-gray-700">自分でも学習する</p>
-              <p className="text-xs text-gray-400">保護者の方も問題に挑戦できます</p>
+          <div className="rounded-2xl bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-bold text-gray-700">自分でも学習する</p>
+                <p className="text-xs text-gray-400">保護者の方も問題に挑戦できます</p>
+              </div>
+              <Link
+                href="/study"
+                className="rounded-full bg-green-500 px-4 py-2 text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                はじめる →
+              </Link>
             </div>
-            <span className="rounded-full bg-green-500 px-4 py-2 text-sm font-bold text-white">はじめる →</span>
-          </Link>
+            <Link href="/progress" className="mt-2 block text-xs text-gray-400 underline">
+              自分の学習きろくを見る
+            </Link>
+          </div>
         </section>
       </div>
     </div>

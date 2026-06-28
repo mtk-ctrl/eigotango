@@ -32,7 +32,7 @@ export default async function HomePage() {
     return (
       <>
         <ParentHome name={name} premium={subscription?.plan === 'premium'} children={children} />
-        <BottomNav />
+        <BottomNav role="parent" />
       </>
     )
   }
@@ -44,7 +44,7 @@ export default async function HomePage() {
   return (
     <>
       <StudentHome name={name} premium={max > 20} review={review} />
-      <BottomNav />
+      <BottomNav role="student" />
     </>
   )
 }
