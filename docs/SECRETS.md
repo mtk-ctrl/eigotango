@@ -28,6 +28,7 @@ Workers & Pages → eigotango → Settings → Variables and secrets
 | `LINE_CHANNEL_ACCESS_TOKEN` | Secret | LINE Push 送信 |
 | `BREVO_API_KEY` | Secret | メール送信（brevo.com で取得） |
 | `BREVO_FROM_EMAIL` | Var | 送信元メールアドレス（Brevo に登録した Gmail アドレス）未設定時は `mtk551141@gmail.com` |
+| `FEEDBACK_TO_EMAIL` | Var | フィードバック通知の宛先（任意・未設定時は `BREVO_FROM_EMAIL` → `mtk551141@gmail.com`） |
 | `BREVO_FROM_NAME` | Var | 送信者名（未設定時は `英語タンゴ`） |
 | `STRIPE_SECRET_KEY` | Secret | Stripe Checkout 作成 |
 | `STRIPE_WEBHOOK_SECRET` | Secret | Stripe Webhook 署名検証 |

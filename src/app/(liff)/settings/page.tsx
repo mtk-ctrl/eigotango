@@ -4,8 +4,10 @@ import { getStudentDailyMax } from '@/app/actions/study'
 import { getChildrenData } from '@/app/actions/parent'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { BottomNav } from '@/components/BottomNav'
+import { LogoutButton } from '@/components/LogoutButton'
 import { SettingsClient } from './SettingsClient'
 import { ChildrenManager } from './ChildrenManager'
+import { FeedbackForm } from './FeedbackForm'
 import { UpgradeButton } from './UpgradeButton'
 import type { NotificationChannel } from '@/types/database'
 
@@ -74,6 +76,14 @@ export default async function SettingsPage() {
               <span className="text-[11px] text-gray-400">プランは保護者が管理します</span>
             </div>
           )}
+        </div>
+
+        {/* ご意見・不具合の報告 */}
+        <FeedbackForm />
+
+        {/* ログアウト */}
+        <div className="flex justify-center pt-2">
+          <LogoutButton className="text-sm text-gray-400 underline" />
         </div>
       </div>
 
