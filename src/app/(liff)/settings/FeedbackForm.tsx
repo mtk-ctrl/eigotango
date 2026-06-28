@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { submitFeedback } from '@/app/actions/feedback'
 
 type Category = 'bug' | 'request' | 'other'
@@ -24,6 +24,11 @@ export function FeedbackForm() {
   const [done, setDone] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // preview が変わった/アンマウント時に古いオブジェクトURLを解放（メモリリーク防止）
+  useEffect(() => {
+    return () => { if (preview) URL.revokeObjectURL(preview) }
+  }, [preview])
+
   const pickFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('')
     const f = e.target.files?.[0]
@@ -36,8 +41,7 @@ export function FeedbackForm() {
 
   const clearFile = () => {
     setFile(null)
-    if (preview) URL.revokeObjectURL(preview)
-    setPreview(null)
+    setPreview(null)   // 解放は useEffect のクリーンアップに任せる
     if (fileRef.current) fileRef.current.value = ''
   }
 
