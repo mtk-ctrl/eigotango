@@ -45,8 +45,8 @@ export async function setMyDailyGoal(goal: number) {
   await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
 }
 
-// 通知方法を変更（メール / LINE / 両方）
-export async function setNotificationChannel(channel: 'line' | 'email' | 'both') {
+// 通知方法を変更（オフ / メール / LINE / 両方）
+export async function setNotificationChannel(channel: 'none' | 'line' | 'email' | 'both') {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Unauthorized')

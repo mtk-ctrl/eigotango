@@ -6,7 +6,7 @@ export type SubscriptionPlan = 'free' | 'premium'
 export type SubscriptionStatus = 'active' | 'canceled' | 'past_due'
 export type Grade = '中1' | '中2' | '中3'
 export type WordLevel = '基礎' | '標準' | '難関'
-export type NotificationChannel = 'line' | 'email' | 'both'
+export type NotificationChannel = 'none' | 'line' | 'email' | 'both'
 
 export interface Profile {
   id: string
