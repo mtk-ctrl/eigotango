@@ -9,6 +9,8 @@ crons = ["0 22 * * *"]
 [vars]
 # Supabase プロジェクト URL（公開情報・シークレット不要）
 SUPABASE_URL = "https://xxxxxxxxxxxx.supabase.co"
+# 本番アプリ URL（フィードバック日次ダイジェストの呼び出し先）
+APP_URL = "https://eigotango.mtk551141.workers.dev"
 
 # SUPABASE_SERVICE_ROLE_KEY は wrangler secret で管理（コードに書かない）
 # Cloudflare ダッシュボード → Workers → eigotango-cron → Settings → Variables

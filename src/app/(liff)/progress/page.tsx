@@ -3,24 +3,14 @@ import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
 import { jstDate } from '@/lib/date'
+import { displayNameOf } from '@/lib/profile'
+import { parentOwnsChild } from '@/lib/relations'
 import { BottomNav } from '@/components/BottomNav'
 
 function formatDate(dateStr: string): string {
   const DOW = ['日', '月', '火', '水', '木', '金', '土']
   const d = new Date(dateStr + 'T12:00:00Z')
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}(${DOW[d.getUTCDay()]})`
-}
-
-// 親がこの子（managed or paired）を持っているか
-async function parentOwnsChild(parentId: string, childId: string): Promise<boolean> {
-  const admin = createAdminClient()
-  const { data: managed } = await admin
-    .from('profiles').select('id').eq('id', childId).eq('managed_by', parentId).maybeSingle()
-  if (managed) return true
-  const { data: rel } = await admin
-    .from('student_parent_relations').select('id')
-    .eq('parent_id', parentId).eq('student_id', childId).not('paired_at', 'is', null).maybeSingle()
-  return !!rel
 }
 
 export default async function ProgressPage({
@@ -50,7 +40,7 @@ export default async function ProgressPage({
     const admin = createAdminClient()
     const { data: cp } = await admin
       .from('profiles').select('display_name, line_display_name').eq('id', studentId).single()
-    childName = cp?.line_display_name ?? cp?.display_name ?? '子ども'
+    childName = displayNameOf(cp, '子ども')
   }
 
   // 子を見るときは admin、自分のときは RLS クライアントで十分

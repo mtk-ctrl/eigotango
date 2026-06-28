@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChildrenData } from '@/app/actions/parent'
 import { getReviewStatus, getStudentDailyMax } from '@/app/actions/study'
+import { displayNameOf } from '@/lib/profile'
 import { BottomNav } from '@/components/BottomNav'
 import { ParentHome } from './ParentHome'
 import { StudentHome } from './StudentHome'
@@ -17,7 +18,7 @@ export default async function HomePage() {
     .select('role, display_name, line_display_name')
     .eq('id', user.id)
     .single()
-  const name = profile?.line_display_name ?? profile?.display_name ?? ''
+  const name = displayNameOf(profile)
 
   if (profile?.role === 'parent') {
     const [children, subscription] = await Promise.all([
