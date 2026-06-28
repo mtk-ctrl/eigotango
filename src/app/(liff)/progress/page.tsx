@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
+import { jstDate } from '@/lib/date'
 import { BottomNav } from '@/components/BottomNav'
 
 function formatDate(dateStr: string): string {
@@ -58,8 +59,7 @@ export default async function ProgressPage({
   // 利用可能な語の範囲（無料=基本100語のみ / プレミアム=全語）で分母を出す
   const premium = (await getStudentDailyMax(studentId)) > 20
 
-  const sevenDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000)
-    .toISOString().split('T')[0]
+  const sevenDaysAgo = jstDate(-6)
 
   const wordsQuery = db.from('words').select('grade')
   if (!premium) wordsQuery.eq('tier', 'free')
@@ -97,7 +97,8 @@ export default async function ProgressPage({
     <div className={`min-h-dvh bg-gray-50 ${viewingChild ? 'pb-8' : 'pb-24'}`}>
       {/* ヘッダー */}
       <header className="px-5 pt-12 pb-2">
-        {viewingChild && (
+        {/* 親の自分のきろく/子のきろくはタブ外なので戻る導線を出す（生徒の自分のきろくはタブなので不要） */}
+        {(viewingChild || !isStudent) && (
           <Link href="/home" className="text-xs text-gray-400 underline">← ホームへ</Link>
         )}
         <h1 className="mt-1 text-2xl font-bold text-gray-800">

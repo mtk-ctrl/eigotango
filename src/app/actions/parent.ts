@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { jstDate } from '@/lib/date'
 
 const randomUUID = () => crypto.randomUUID()
 
@@ -220,7 +221,7 @@ export async function getChildrenData(): Promise<ChildData[]> {
   const parentId = await requireParent()
   const admin = createAdminClient()
 
-  const today = new Date().toISOString().split('T')[0]
+  const today = jstDate()
 
   const { data: relations } = await admin
     .from('student_parent_relations')
@@ -244,15 +245,14 @@ export async function getChildrenData(): Promise<ChildData[]> {
     .in('student_id', studentIds)
     .gt('repetitions', 0)
 
-  // 連続学習日数の計算用に、直近30日の完了済みセッション日付を取得
-  const thirtyAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
-    .toISOString().split('T')[0]
+  // 連続学習日数の計算用に、直近1年の完了済みセッション日付を取得（streak 上限を緩和）
+  const oneYearAgo = jstDate(-364)
   const { data: completedSessions } = await admin
     .from('study_sessions')
     .select('student_id, session_date')
     .in('student_id', studentIds)
     .not('completed_at', 'is', null)
-    .gte('session_date', thirtyAgo)
+    .gte('session_date', oneYearAgo)
 
   return relations.map(r => {
     const p = r.profiles as unknown as {
