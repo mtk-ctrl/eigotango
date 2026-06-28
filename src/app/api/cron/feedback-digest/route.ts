@@ -12,6 +12,17 @@ function escapeHtml(s: string): string {
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
+// http/https のみ許可（javascript: 等のスキームを弾く・多層防御）
+function safeHttpUrl(u: string | null): string | null {
+  if (!u) return null
+  try {
+    const { protocol } = new URL(u)
+    return protocol === 'http:' || protocol === 'https:' ? u : null
+  } catch {
+    return null
+  }
+}
+
 interface Row {
   id: string
   category: string
@@ -49,11 +60,16 @@ export async function POST(req: Request) {
   if (items.length === 0) return NextResponse.json({ count: 0 })
 
   const to = process.env.FEEDBACK_TO_EMAIL ?? process.env.BREVO_FROM_EMAIL ?? 'mtk551141@gmail.com'
-  await sendEmail({
+  const sent = await sendEmail({
     to,
     subject: `【フィードバック日次】新着 ${items.length} 件`,
     html: buildDigestHtml(items),
   })
+  // 送信失敗時は既読化せず 500（既読にすると未達のまま消える）
+  if (!sent) {
+    console.error('[feedback-digest] email send failed; keeping status=new')
+    return NextResponse.json({ error: 'email send failed', count: items.length }, { status: 500 })
+  }
 
   // 既読化に失敗したら 500（成功扱いだと翌日に重複送信されるため）
   const { error: updErr } = await admin
@@ -71,8 +87,9 @@ export async function POST(req: Request) {
 function buildDigestHtml(rows: Row[]): string {
   const blocks = rows.map(r => {
     const when = new Date(r.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
-    const img = r.image_url
-      ? `<p style="margin:6px 0;"><a href="${escapeHtml(r.image_url)}" style="color:#22a559;">添付画像</a></p>`
+    const safeImg = safeHttpUrl(r.image_url)
+    const img = safeImg
+      ? `<p style="margin:6px 0;"><a href="${escapeHtml(safeImg)}" style="color:#22a559;">添付画像</a></p>`
       : ''
     return `<div style="border:1px solid #eee;border-radius:8px;padding:14px;margin:0 0 12px;">
       <p style="margin:0 0 6px;"><span style="background:#eafaf0;color:#22a559;border-radius:4px;padding:2px 8px;font-size:12px;font-weight:bold;">${LABEL[r.category] ?? r.category}</span>
