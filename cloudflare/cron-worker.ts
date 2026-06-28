@@ -15,7 +15,12 @@ export default {
           'Content-Type': 'application/json',
         },
       })
-      console.log('[cron] batch-notify:', await res.json())
+      // fetch は 4xx/5xx で throw しないため res.ok を明示チェック（HTMLエラー時の json パース失敗でステータスがマスクされるのを防ぐ）
+      if (!res.ok) {
+        console.error('[cron] batch-notify HTTP', res.status, await res.text())
+      } else {
+        console.log('[cron] batch-notify:', await res.json())
+      }
     } catch (e) {
       console.error('[cron] batch-notify failed:', e)
     }
@@ -27,7 +32,11 @@ export default {
           method: 'POST',
           headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
         })
-        console.log('[cron] feedback-digest:', await res.json())
+        if (!res.ok) {
+          console.error('[cron] feedback-digest HTTP', res.status, await res.text())
+        } else {
+          console.log('[cron] feedback-digest:', await res.json())
+        }
       } catch (e) {
         console.error('[cron] feedback-digest failed:', e)
       }
