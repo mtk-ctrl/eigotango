@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { setMyDailyGoal } from '@/app/actions/auth'
 
-const OPTIONS = [3, 5, 10, 15, 20]
+const OPTIONS = [3, 4, 5, 10, 15, 20]
 
 interface Props {
   current: number

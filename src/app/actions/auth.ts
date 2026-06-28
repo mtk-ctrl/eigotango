@@ -45,6 +45,29 @@ export async function setMyDailyGoal(goal: number) {
   await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
 }
 
+// 通知方法を変更（メール / LINE / 両方）
+export async function setNotificationChannel(channel: 'line' | 'email' | 'both') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  await admin.from('profiles').update({ notification_channel: channel }).eq('id', user.id)
+}
+
+// 本人の表示名を変更
+export async function setMyDisplayName(name: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const trimmed = name.trim().slice(0, 20)
+  if (!trimmed) throw new Error('名前を入力してください')
+
+  const admin = createAdminClient()
+  await admin.from('profiles').update({ display_name: trimmed }).eq('id', user.id)
+}
+
 // LINE user_id からユーザーを検索（LINE Webhook / 通知連携用）
 export async function findUserByLineId(lineUserId: string) {
   const admin = createAdminClient()
