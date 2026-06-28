@@ -31,6 +31,7 @@ export default async function SettingsPage() {
       {/* ヘッダー */}
       <header className="px-5 pt-12 pb-2">
         <h1 className="text-2xl font-bold text-gray-800">せってい</h1>
+        <p className="text-sm text-gray-400">{isParent ? 'お子さまの管理・各種設定' : '各種設定'}</p>
       </header>
 
       <div className="px-5 mt-4 flex flex-col gap-4">
@@ -76,7 +77,7 @@ export default async function SettingsPage() {
         </div>
       </div>
 
-      <BottomNav />
+      <BottomNav role={isParent ? 'parent' : 'student'} />
     </div>
   )
 }
