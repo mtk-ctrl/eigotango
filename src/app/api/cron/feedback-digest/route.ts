@@ -32,12 +32,18 @@ export async function POST(req: Request) {
   if (!process.env.BREVO_API_KEY) return NextResponse.json({ skipped: 'no BREVO_API_KEY' })
 
   const admin = createAdminClient()
-  const { data: rows } = await admin
+  const { data: rows, error: selErr } = await admin
     .from('feedback')
     .select('id, category, message, email, role, image_url, created_at')
     .eq('status', 'new')
     .order('created_at', { ascending: true })
     .limit(500)
+
+  // 取得失敗を 0 件として誤検知しないよう明示チェック
+  if (selErr) {
+    console.error('[feedback-digest] select failed:', selErr)
+    return NextResponse.json({ error: 'select failed' }, { status: 500 })
+  }
 
   const items = (rows ?? []) as Row[]
   if (items.length === 0) return NextResponse.json({ count: 0 })
@@ -49,7 +55,16 @@ export async function POST(req: Request) {
     html: buildDigestHtml(items),
   })
 
-  await admin.from('feedback').update({ status: 'read' }).in('id', items.map(r => r.id))
+  // 既読化に失敗したら 500（成功扱いだと翌日に重複送信されるため）
+  const { error: updErr } = await admin
+    .from('feedback')
+    .update({ status: 'read' })
+    .in('id', items.map(r => r.id))
+  if (updErr) {
+    console.error('[feedback-digest] mark-read failed:', updErr)
+    return NextResponse.json({ error: 'mark-read failed', count: items.length }, { status: 500 })
+  }
+
   return NextResponse.json({ count: items.length })
 }
 
@@ -57,7 +72,7 @@ function buildDigestHtml(rows: Row[]): string {
   const blocks = rows.map(r => {
     const when = new Date(r.created_at).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
     const img = r.image_url
-      ? `<p style="margin:6px 0;"><a href="${r.image_url}" style="color:#22a559;">添付画像</a></p>`
+      ? `<p style="margin:6px 0;"><a href="${escapeHtml(r.image_url)}" style="color:#22a559;">添付画像</a></p>`
       : ''
     return `<div style="border:1px solid #eee;border-radius:8px;padding:14px;margin:0 0 12px;">
       <p style="margin:0 0 6px;"><span style="background:#eafaf0;color:#22a559;border-radius:4px;padding:2px 8px;font-size:12px;font-weight:bold;">${LABEL[r.category] ?? r.category}</span>
