@@ -92,6 +92,49 @@ async function getDailyGoal(studentId: string): Promise<number> {
   return Math.min(Math.max(profile?.daily_goal ?? 10, 1), max)
 }
 
+// 復習リマインド用のステータス（解き忘れ＝期限切れの可視化）。
+// due       : 今日までに復習すべき語数（next_review_date <= 今日）
+// overdue   : 期限切れ＝過去に解き忘れた語数（next_review_date < 今日）
+// newRemaining: まだ一度も学習していない語数（新規で挑戦できる残り）
+// dailyGoal : 1日の出題語数（追いつくのに何日かかるか表示用）
+export async function getReviewStatus(studentId?: string): Promise<{
+  due: number
+  overdue: number
+  newRemaining: number
+  dailyGoal: number
+}> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return { due: 0, overdue: 0, newRemaining: 0, dailyGoal: 10 }
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const today = new Date().toISOString().split('T')[0]
+  const premium = (await getStudentDailyMax(sid)) > FREE_MAX
+
+  // 学習済みの進捗（語の tier を同時取得して無料ユーザーは free のみ集計）
+  const { data: progressRows } = await admin
+    .from('user_word_progress')
+    .select('next_review_date, word:words(tier)')
+    .eq('student_id', sid)
+
+  const rows = (progressRows ?? []).filter(r => {
+    const w = r.word as unknown as { tier: string } | null
+    return premium || w?.tier === 'free'
+  })
+  const due = rows.filter(r => (r.next_review_date as string) <= today).length
+  const overdue = rows.filter(r => (r.next_review_date as string) < today).length
+  const learned = rows.length
+
+  // 利用可能な語の総数（tier 範囲）から学習済みを引いて新規残数
+  let countQuery = admin.from('words').select('id', { count: 'exact', head: true })
+  if (!premium) countQuery = countQuery.eq('tier', 'free')
+  const { count } = await countQuery
+  const newRemaining = Math.max((count ?? 0) - learned, 0)
+
+  const dailyGoal = await getDailyGoal(sid)
+  return { due, overdue, newRemaining, dailyGoal }
+}
+
 // 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
 // studentId 省略時はログイン中の本人。指定時は親が子の代わりに取得（要認可）。
 export async function getTodayStudyWords(studentId?: string): Promise<TodayStudyResult> {

@@ -12,7 +12,6 @@ import {
 } from '@/app/actions/parent'
 import { setMyDailyGoal } from '@/app/actions/auth'
 import { createCheckoutSession } from '@/app/actions/stripe'
-import { LogoutButton } from '@/components/LogoutButton'
 
 interface Subscription {
   plan: string
@@ -27,7 +26,7 @@ interface Props {
   subscription: Subscription
 }
 
-const GOAL_OPTIONS = [3, 5, 10, 15, 20]
+const GOAL_OPTIONS = [3, 4, 5, 10, 15, 20]
 
 export function ParentClient({ parentName, parentDailyGoal, children, subscription }: Props) {
   const router = useRouter()
@@ -102,7 +101,9 @@ export function ParentClient({ parentName, parentDailyGoal, children, subscripti
             <p className="text-sm opacity-80">保護者ダッシュボード</p>
             <h1 className="text-xl font-bold mt-1">{parentName || 'こんにちは'} さん</h1>
           </div>
-          <LogoutButton className="text-xs text-white/70 underline mt-1" />
+          <Link href="/settings" aria-label="設定" className="shrink-0 text-2xl mt-0.5 active:scale-90 transition-transform">
+            ⚙️
+          </Link>
         </div>
       </div>
 

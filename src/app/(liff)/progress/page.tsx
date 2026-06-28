@@ -2,8 +2,6 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
-import { LogoutButton } from '@/components/LogoutButton'
-import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 
 function formatDate(dateStr: string): string {
   const DOW = ['日', '月', '火', '水', '木', '金', '土']
@@ -109,7 +107,15 @@ export default async function ProgressPage({
               {viewingChild ? `${childName}さんの記録` : '学習進捗'}
             </h1>
           </div>
-          {!viewingChild && <LogoutButton className="text-xs text-white/70 underline mt-1" />}
+          {!viewingChild && (
+            <Link
+              href="/settings"
+              aria-label="設定"
+              className="shrink-0 text-2xl mt-0.5 active:scale-90 transition-transform"
+            >
+              ⚙️
+            </Link>
+          )}
         </div>
       </div>
 
@@ -139,15 +145,6 @@ export default async function ProgressPage({
             </div>
           </div>
         </div>
-
-        {/* 1日の問題数（自分の進捗を見ている本人のみ） */}
-        {!viewingChild && (
-          <SelfGoalSetting
-            current={myProfile?.daily_goal ?? 10}
-            locked={myProfile?.daily_goal_locked ?? false}
-            max={await getStudentDailyMax(studentId)}
-          />
-        )}
 
         {/* 学年別内訳 */}
         <div className="bg-white rounded-2xl p-5 shadow-sm">
