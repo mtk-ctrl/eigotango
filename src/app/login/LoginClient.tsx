@@ -21,8 +21,8 @@ export function LoginClient() {
     )
   }
 
-  function go(r: Role) {
-    window.location.href = r === 'parent' ? '/parent' : '/study'
+  function go() {
+    window.location.href = '/home'
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -45,16 +45,11 @@ export function LoginClient() {
           setMode('login')
           return
         }
-        go(role)
+        go()
       } else {
-        const { data, error } = await sb.auth.signInWithPassword({ email, password })
+        const { error } = await sb.auth.signInWithPassword({ email, password })
         if (error) throw error
-        const { data: profile } = await sb
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single()
-        go((profile?.role as Role) ?? 'student')
+        go()
       }
     } catch (err) {
       const raw = err instanceof Error ? err.message : JSON.stringify(err)

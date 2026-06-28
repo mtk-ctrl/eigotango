@@ -22,7 +22,7 @@ export async function setUserRole(role: 'student' | 'parent') {
 
   if (error) throw new Error(error.message)
 
-  redirect(role === 'parent' ? '/parent' : '/study')
+  redirect('/home')
 }
 
 // 本人の1日の問題数を設定（親がロックしている場合は変更不可 = 親優先）

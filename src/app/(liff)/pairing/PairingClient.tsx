@@ -23,7 +23,7 @@ export function PairingClient() {
     try {
       await submitPairingCode(code)
       setDone(true)
-      setTimeout(() => router.replace('/study'), 2000)
+      setTimeout(() => router.replace('/home'), 2000)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'エラーが発生しました')
       setSubmitting(false)
