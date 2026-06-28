@@ -74,8 +74,9 @@ export async function POST(req: Request) {
     }
   }
 
-  // リクエスト元のオリジンを使う（個人URLのハードコードを避ける）
-  const appUrl = new URL(req.url).origin
+  // 本番のカスタムドメインを優先。未設定時のみリクエスト元オリジンにフォールバック
+  // （内部ルーティング/プレビュードメイン経由で誤ったリンクになるのを防ぐ。個人URLのハードコードはしない）
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin
 
   // チャンクごとに並列送信（直列の RTT 累積でタイムアウトするのを防ぐ）
   let sent = 0
