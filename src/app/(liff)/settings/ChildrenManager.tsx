@@ -95,7 +95,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
       {addMode === null ? (
         <button
           onClick={() => setAddMode('managed')}
-          className="w-full rounded-xl border-2 border-dashed border-blue-200 py-2.5 text-sm font-bold text-blue-500 active:scale-95 transition-transform"
+          className="w-full rounded-xl border-2 border-dashed border-green-300 py-2.5 text-sm font-bold text-green-600 active:scale-95 transition-transform"
         >
           ＋ お子さまを追加
         </button>
@@ -104,13 +104,13 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
           <div className="mb-3 flex gap-2">
             <button
               onClick={() => { setAddMode('managed'); setPairingCode(null) }}
-              className={`flex-1 rounded-lg py-2 text-sm font-bold ${addMode === 'managed' ? 'bg-blue-500 text-white' : 'bg-white text-gray-500'}`}
+              className={`flex-1 rounded-lg py-2 text-sm font-bold ${addMode === 'managed' ? 'bg-green-500 text-white' : 'bg-white text-gray-500'}`}
             >
               この端末で管理
             </button>
             <button
               onClick={() => setAddMode('pairing')}
-              className={`flex-1 rounded-lg py-2 text-sm font-bold ${addMode === 'pairing' ? 'bg-blue-500 text-white' : 'bg-white text-gray-500'}`}
+              className={`flex-1 rounded-lg py-2 text-sm font-bold ${addMode === 'pairing' ? 'bg-green-500 text-white' : 'bg-white text-gray-500'}`}
             >
               子のアカウントと連携
             </button>
@@ -126,7 +126,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 placeholder="子どもの名前（例: たろう）"
-                className="w-full rounded-xl border-2 border-gray-200 p-3 focus:border-blue-400 focus:outline-none"
+                className="w-full rounded-xl border-2 border-gray-200 p-3 focus:border-green-400 focus:outline-none"
               />
               <div>
                 <p className="mb-1 text-xs text-gray-500">1日の問題数</p>
@@ -155,7 +155,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
               </p>
               {pairingCode ? (
                 <div className="py-2 text-center">
-                  <p className="my-2 font-mono text-4xl font-bold tracking-widest text-blue-600">
+                  <p className="my-2 font-mono text-4xl font-bold tracking-widest text-green-600">
                     {pairingCode.slice(0, 3)}-{pairingCode.slice(3)}
                   </p>
                   <p className="text-xs text-gray-400">{codeExpiry} まで有効</p>
@@ -192,7 +192,7 @@ function GoalPicker({ value, options, onChange }: { value: number; options: numb
         <button
           key={n}
           onClick={() => onChange(n)}
-          className={`rounded-lg px-3 py-2 text-sm font-bold ${value === n ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+          className={`rounded-lg px-3 py-2 text-sm font-bold ${value === n ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}`}
         >
           {n}語
         </button>
@@ -240,7 +240,7 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
             type="text"
             value={name}
             onChange={e => setName(e.target.value)}
-            className="w-full rounded-xl border-2 border-gray-200 p-2.5 focus:border-blue-400 focus:outline-none"
+            className="w-full rounded-xl border-2 border-gray-200 p-2.5 focus:border-green-400 focus:outline-none"
           />
         </div>
       )}

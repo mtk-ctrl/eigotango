@@ -42,7 +42,7 @@ export function ParentHome({ name, premium, children }: Props) {
               <p className="mt-2 text-sm text-gray-500">お子さまを登録すると、<br />毎日の学習の様子がここに表示されます。</p>
               <Link
                 href="/settings"
-                className="mt-4 inline-block rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-transform"
+                className="mt-4 inline-block rounded-xl bg-green-500 px-5 py-2.5 text-sm font-bold text-white active:scale-95 transition-transform"
               >
                 お子さまを登録する →
               </Link>
