@@ -305,7 +305,7 @@ VALUES
   ('bus tour', 'バスツアー、バス旅行', '中1', '基礎', true, ARRAY['bus tour'], 'premium'),
   ('plane ticket', '飛行機の切符、航空券', '中2', '基礎', true, ARRAY['plane ticket'], 'premium'),
   ('passport control', '出入国審査、パスポートコントロール', '中3', '基礎', true, ARRAY['passport control'], 'premium'),
-  ('hotel room', 'ホテルの部屋客室', '中1', '基礎', true, ARRAY['hotel room'], 'premium'),
+  ('hotel room', 'ホテルの部屋、客室', '中1', '基礎', true, ARRAY['hotel room'], 'premium'),
   ('bed room', '寝室、ベッドルーム', '中1', '基礎', true, ARRAY['bed room','bedroom'], 'premium'),
   ('living room', '居間、リビング', '中1', '基礎', true, ARRAY['living room'], 'premium'),
   ('dining room', '食堂、ダイニングルーム', '中1', '基礎', true, ARRAY['dining room'], 'premium'),
