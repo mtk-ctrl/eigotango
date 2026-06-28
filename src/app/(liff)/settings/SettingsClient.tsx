@@ -13,9 +13,10 @@ interface Props {
 }
 
 const CHANNELS: { value: NotificationChannel; label: string; note: string }[] = [
-  { value: 'email', label: '📧 メール', note: '登録メールにリマインドを送ります' },
+  { value: 'email', label: '📧 メール', note: '登録メールに毎日のリマインドを送ります' },
   { value: 'line', label: '💬 LINE', note: 'LINE連携が必要です' },
   { value: 'both', label: '📧＋💬 両方', note: 'メールとLINEの両方に送ります' },
+  { value: 'none', label: '🔕 オフ', note: '毎日のリマインドを受け取りません' },
 ]
 
 export function SettingsClient({ displayName, email, channel, lineLinked }: Props) {
@@ -68,9 +69,9 @@ export function SettingsClient({ displayName, email, channel, lineLinked }: Prop
       {/* 通知方法 */}
       <div className="bg-white rounded-2xl p-5 shadow-sm">
         <h2 className="font-bold text-gray-700 text-sm mb-1">
-          通知方法{savingCh && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}
+          毎日のリマインド{savingCh && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}
         </h2>
-        <p className="text-xs text-gray-400 mb-3">毎日の学習リマインドの届け先</p>
+        <p className="text-xs text-gray-400 mb-3">毎朝の学習リマインドの届け先（オフも選べます）</p>
         <div className="flex flex-col gap-2">
           {CHANNELS.map(opt => {
             const disabled = (opt.value === 'line' || opt.value === 'both') && !lineLinked

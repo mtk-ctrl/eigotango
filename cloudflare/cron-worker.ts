@@ -1,51 +1,39 @@
 // Cloudflare Workers Cron Trigger
-// 毎朝 JST 7:00 に (1) batch-notify Edge Function（学習リマインド）と
-// (2) フィードバック日次ダイジェスト（Next API ルート）を呼ぶ。
-// デプロイ: wrangler deploy
-// シークレット設定: wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+// 毎朝 JST 7:00 に Next の API ルートを呼ぶ:
+//  (1) /api/cron/daily-reminder  … 毎日のリマインドメール
+//  (2) /api/cron/feedback-digest … フィードバック日次ダイジェスト
+// いずれも APP_URL（本番アプリ）経由なので Edge Function のデプロイ可否に依存しない。
+// デプロイ: wrangler deploy / シークレット: wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+
+async function callApi(env: Env, path: string, label: string) {
+  try {
+    const res = await fetch(`${env.APP_URL}${path}`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
+    })
+    // fetch は 4xx/5xx で throw しないため res.ok を明示チェック
+    if (!res.ok) {
+      console.error(`[cron] ${label} HTTP`, res.status, await res.text())
+    } else {
+      console.log(`[cron] ${label}:`, await res.json())
+    }
+  } catch (e) {
+    console.error(`[cron] ${label} failed:`, e)
+  }
+}
 
 export default {
   async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
-    // (1) 学習リマインド
-    try {
-      const res = await fetch(`${env.SUPABASE_URL}/functions/v1/batch-notify`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      // fetch は 4xx/5xx で throw しないため res.ok を明示チェック（HTMLエラー時の json パース失敗でステータスがマスクされるのを防ぐ）
-      if (!res.ok) {
-        console.error('[cron] batch-notify HTTP', res.status, await res.text())
-      } else {
-        console.log('[cron] batch-notify:', await res.json())
-      }
-    } catch (e) {
-      console.error('[cron] batch-notify failed:', e)
+    if (!env.APP_URL) {
+      console.error('[cron] APP_URL 未設定')
+      return
     }
-
-    // (2) フィードバック日次ダイジェスト（オーナーへ1通）
-    if (env.APP_URL) {
-      try {
-        const res = await fetch(`${env.APP_URL}/api/cron/feedback-digest`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` },
-        })
-        if (!res.ok) {
-          console.error('[cron] feedback-digest HTTP', res.status, await res.text())
-        } else {
-          console.log('[cron] feedback-digest:', await res.json())
-        }
-      } catch (e) {
-        console.error('[cron] feedback-digest failed:', e)
-      }
-    }
+    await callApi(env, '/api/cron/daily-reminder', 'daily-reminder')
+    await callApi(env, '/api/cron/feedback-digest', 'feedback-digest')
   },
 }
 
 interface Env {
-  SUPABASE_URL: string
   SUPABASE_SERVICE_ROLE_KEY: string  // wrangler secret put で設定
   APP_URL: string                    // 本番アプリ URL（wrangler vars）
 }
