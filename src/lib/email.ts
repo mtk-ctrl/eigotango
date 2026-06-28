@@ -6,11 +6,12 @@ interface SendEmailOptions {
   html: string
 }
 
-export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<void> {
+// 送信できたら true、失敗/未設定なら false を返す（呼び出し側が成否で分岐できる）。
+export async function sendEmail({ to, subject, html }: SendEmailOptions): Promise<boolean> {
   const apiKey = process.env.BREVO_API_KEY
   if (!apiKey) {
     console.warn('[email] BREVO_API_KEY が未設定のためスキップ')
-    return
+    return false
   }
 
   const fromEmail = process.env.BREVO_FROM_EMAIL ?? 'mtk551141@gmail.com'
@@ -31,8 +32,10 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions): Promis
   })
 
   if (!res.ok) {
-    console.error('[email] 送信失敗:', await res.text())
+    console.error('[email] 送信失敗:', res.status, await res.text())
+    return false
   }
+  return true
 }
 
 export function buildParentNotificationHtml({

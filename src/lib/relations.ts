@@ -13,5 +13,11 @@ export async function parentOwnsChild(parentId: string, childId: string): Promis
       .eq('parent_id', parentId).eq('student_id', childId)
       .not('paired_at', 'is', null).maybeSingle(),
   ])
+  // クエリ失敗を「権限なし(false)」と握りつぶさず、明示的に失敗させる
+  const err = managedRes.error ?? relRes.error
+  if (err) {
+    console.error('[parentOwnsChild] query failed:', err)
+    throw new Error('親子関係の確認に失敗しました')
+  }
   return !!managedRes.data || !!relRes.data
 }
