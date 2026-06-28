@@ -13,23 +13,16 @@ export default async function StudyPage({
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-  const role = (profile?.role as 'student' | 'parent') ?? 'student'
-
   let studentId = user.id
   let studentName: string | undefined
-  let returnTo = role === 'parent' ? '/parent' : '/progress'
+  let returnTo = '/home'
   let recordsHref = '/progress'
   let showLogout = true
 
   // 親が子の代わりに学習（?child=...）
   if (child && child !== user.id) {
     studentId = child
-    returnTo = '/parent'
+    returnTo = '/home'
     recordsHref = `/progress?child=${child}`
     showLogout = false
     const admin = createAdminClient()

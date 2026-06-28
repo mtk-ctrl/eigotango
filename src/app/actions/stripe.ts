@@ -46,8 +46,8 @@ export async function createCheckoutSession(): Promise<{ url: string }> {
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: process.env.STRIPE_PREMIUM_PRICE_ID!, quantity: 1 }],
-    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/parent?upgraded=1`,
-    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/parent`,
+    success_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings?upgraded=1`,
+    cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
   })
 
   if (!session.url) throw new Error('Checkout URL not found')

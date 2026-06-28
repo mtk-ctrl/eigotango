@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
+import { BottomNav } from '@/components/BottomNav'
 
 function formatDate(dateStr: string): string {
   const DOW = ['日', '月', '火', '水', '木', '金', '土']
@@ -33,17 +34,17 @@ export default async function ProgressPage({
 
   const { data: myProfile } = await supabase
     .from('profiles')
-    .select('role, daily_goal, daily_goal_locked')
+    .select('role')
     .eq('id', user.id)
     .single()
-  const isParent = myProfile?.role === 'parent'
+  const isStudent = myProfile?.role !== 'parent'
 
   // 対象の student を決定
   let studentId = user.id
   let childName: string | undefined
   const viewingChild = !!child && child !== user.id
   if (viewingChild) {
-    if (!(await parentOwnsChild(user.id, child!))) redirect('/parent')
+    if (!(await parentOwnsChild(user.id, child!))) redirect('/home')
     studentId = child!
     const admin = createAdminClient()
     const { data: cp } = await admin
@@ -92,54 +93,39 @@ export default async function ProgressPage({
     total: allWords.filter(w => w.grade === grade).length,
   }))
 
-  const studyHref = viewingChild ? `/study?child=${studentId}` : '/study'
-
   return (
-    <div className="min-h-dvh bg-gray-50 pb-8">
+    <div className={`min-h-dvh bg-gray-50 ${viewingChild ? 'pb-8' : 'pb-24'}`}>
       {/* ヘッダー */}
-      <div className="bg-green-500 text-white px-4 pt-10 pb-6">
-        <div className="flex justify-between items-start">
-          <div>
-            {viewingChild && (
-              <Link href="/parent" className="text-xs text-white/70 underline">← ダッシュボード</Link>
-            )}
-            <h1 className="text-xl font-bold mt-1">
-              {viewingChild ? `${childName}さんの記録` : '学習進捗'}
-            </h1>
-          </div>
-          {!viewingChild && (
-            <Link
-              href="/settings"
-              aria-label="設定"
-              className="shrink-0 text-2xl mt-0.5 active:scale-90 transition-transform"
-            >
-              ⚙️
-            </Link>
-          )}
-        </div>
-      </div>
+      <header className="px-5 pt-12 pb-2">
+        {viewingChild && (
+          <Link href="/home" className="text-xs text-gray-400 underline">← ホームへ</Link>
+        )}
+        <h1 className="mt-1 text-2xl font-bold text-gray-800">
+          {viewingChild ? `${childName}さんのきろく` : 'きろく'}
+        </h1>
+      </header>
 
-      <div className="px-4 mt-4 flex flex-col gap-4">
+      <div className="px-5 mt-4 flex flex-col gap-4">
         {/* 総合統計 */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <div className="mb-4 grid grid-cols-2 gap-4">
             <div className="text-center">
               <p className="text-4xl font-bold text-green-600">{totalLearned}</p>
-              <p className="text-xs text-gray-500 mt-1">学習済み</p>
+              <p className="mt-1 text-xs text-gray-500">学習済み</p>
             </div>
             <div className="text-center">
               <p className="text-4xl font-bold text-blue-600">{mastered}</p>
-              <p className="text-xs text-gray-500 mt-1">定着済み（4回以上正解）</p>
+              <p className="mt-1 text-xs text-gray-500">定着済み（4回以上正解）</p>
             </div>
           </div>
           <div>
-            <div className="flex justify-between text-xs text-gray-400 mb-1">
+            <div className="mb-1 flex justify-between text-xs text-gray-400">
               <span>総合進捗</span>
               <span>{totalLearned} / {totalWords}語</span>
             </div>
-            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-2 overflow-hidden rounded-full bg-gray-100">
               <div
-                className="h-2 bg-green-500 rounded-full transition-all"
+                className="h-2 rounded-full bg-green-500 transition-all"
                 style={{ width: `${totalWords > 0 ? Math.min(100, (totalLearned / totalWords) * 100) : 0}%` }}
               />
             </div>
@@ -147,18 +133,18 @@ export default async function ProgressPage({
         </div>
 
         {/* 学年別内訳 */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <h2 className="font-bold text-gray-700 text-sm mb-3">学年別</h2>
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold text-gray-700">学年別</h2>
           <div className="flex flex-col gap-3">
             {gradeStats.map(stat => (
               <div key={stat.grade}>
-                <div className="flex justify-between text-sm mb-1">
+                <div className="mb-1 flex justify-between text-sm">
                   <span className="font-medium text-gray-700">{stat.grade}</span>
-                  <span className="text-gray-400 text-xs">{stat.learned} / {stat.total}語</span>
+                  <span className="text-xs text-gray-400">{stat.learned} / {stat.total}語</span>
                 </div>
-                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                <div className="h-2 overflow-hidden rounded-full bg-gray-100">
                   <div
-                    className="h-2 bg-blue-400 rounded-full"
+                    className="h-2 rounded-full bg-blue-400"
                     style={{ width: `${stat.total > 0 ? Math.min(100, (stat.learned / stat.total) * 100) : 0}%` }}
                   />
                 </div>
@@ -168,21 +154,19 @@ export default async function ProgressPage({
         </div>
 
         {/* 直近7日間 */}
-        <div className="bg-white rounded-2xl p-5 shadow-sm">
-          <h2 className="font-bold text-gray-700 text-sm mb-3">直近7日間</h2>
+        <div className="rounded-2xl bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold text-gray-700">直近7日間</h2>
           {sessions.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-2">まだ学習履歴がありません</p>
+            <p className="py-2 text-center text-sm text-gray-400">まだ学習履歴がありません</p>
           ) : (
             <div className="flex flex-col gap-2">
               {sessions.map(s => (
-                <div key={s.session_date} className="flex justify-between items-center py-1">
+                <div key={s.session_date} className="flex items-center justify-between py-1">
                   <span className="text-sm text-gray-600">{formatDate(s.session_date)}</span>
                   <div className="flex items-center gap-2">
                     {s.completed_at ? (
                       <>
-                        <span className="text-xs text-green-600 font-bold">
-                          {s.correct_words}/{s.total_words}語
-                        </span>
+                        <span className="text-xs font-bold text-green-600">{s.correct_words}/{s.total_words}語</span>
                         <span>✓</span>
                       </>
                     ) : (
@@ -195,38 +179,37 @@ export default async function ProgressPage({
           )}
         </div>
 
-        {/* ナビゲーション */}
-        <div className="flex gap-3">
+        {/* 子どもの記録を見ているとき: 学習導線とホームへ戻る */}
+        {viewingChild && (
+          <div className="flex gap-3">
+            <Link
+              href={`/study?child=${studentId}`}
+              className="flex-1 rounded-xl bg-green-500 py-4 text-center font-bold text-white active:scale-95 transition-transform"
+            >
+              この子の学習へ →
+            </Link>
+            <Link
+              href="/home"
+              className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-600 active:scale-95 transition-transform"
+            >
+              ホーム
+            </Link>
+          </div>
+        )}
+
+        {/* 生徒本人: 保護者と連携する導線 */}
+        {!viewingChild && isStudent && (
           <Link
-            href={studyHref}
-            className="flex-1 py-4 bg-green-500 text-white rounded-xl text-center font-bold active:scale-95 transition-transform"
+            href="/pairing"
+            className="rounded-2xl bg-white p-4 shadow-sm flex items-center justify-between active:scale-[0.99] transition-transform"
           >
-            今日の学習へ →
+            <span className="text-sm font-bold text-gray-700">🔗 保護者と連携する</span>
+            <span className="text-gray-300">›</span>
           </Link>
-          {viewingChild ? (
-            <Link
-              href="/parent"
-              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
-            >
-              ダッシュボード
-            </Link>
-          ) : isParent ? (
-            <Link
-              href="/parent"
-              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
-            >
-              ダッシュボード
-            </Link>
-          ) : (
-            <Link
-              href="/pairing"
-              className="py-4 px-4 bg-white text-gray-600 rounded-xl text-center text-sm border border-gray-200 active:scale-95 transition-transform"
-            >
-              🔗 保護者と連携
-            </Link>
-          )}
-        </div>
+        )}
       </div>
+
+      {!viewingChild && <BottomNav />}
     </div>
   )
 }
