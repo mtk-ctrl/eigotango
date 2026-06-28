@@ -15,7 +15,8 @@ Deno.serve(async (_req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   )
 
-  const today = new Date().toISOString().split('T')[0]
+  // 「今日」は日本時間（JST=UTC+9）で判定（朝の cron が UTC では前日になり取りこぼすのを防ぐ）
+  const today = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().split('T')[0]
   const appUrl = Deno.env.get('APP_URL') ?? 'https://eigotango.mtk551141.workers.dev'
   const lineToken = Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
   const brevoKey = Deno.env.get('BREVO_API_KEY')

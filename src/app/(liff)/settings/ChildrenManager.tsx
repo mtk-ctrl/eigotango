@@ -23,6 +23,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
   const [newName, setNewName] = useState('')
   const [newGoal, setNewGoal] = useState(10)
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState('')
   const [pairingCode, setPairingCode] = useState<string | null>(null)
   const [codeExpiry, setCodeExpiry] = useState<string | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
@@ -30,12 +31,15 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
   const handleAddManaged = async () => {
     if (!newName.trim()) return
     setAdding(true)
+    setAddError('')
     try {
       await addManagedChild(newName.trim(), newGoal)
       setNewName('')
       setNewGoal(10)
       setAddMode(null)
       router.refresh()
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : '追加に失敗しました。時間をおいて再試行してください。')
     } finally {
       setAdding(false)
     }
@@ -43,10 +47,13 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
 
   const handleGenerateCode = async () => {
     setAdding(true)
+    setAddError('')
     try {
       const { code, expiresAt } = await generatePairingCode()
       setPairingCode(code)
       setCodeExpiry(new Date(expiresAt).toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }))
+    } catch (e) {
+      setAddError(e instanceof Error ? e.message : 'コードの発行に失敗しました。時間をおいて再試行してください。')
     } finally {
       setAdding(false)
     }
@@ -115,6 +122,8 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
               子のアカウントと連携
             </button>
           </div>
+
+          {addError && <p className="mb-2 text-sm text-red-500">{addError}</p>}
 
           {addMode === 'managed' ? (
             <div className="flex flex-col gap-3">
@@ -206,13 +215,24 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
   const [name, setName] = useState(child.name)
   const [goal, setGoal] = useState(child.dailyGoal)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  // 端末管理の子のみ名前を編集可。空名では保存させない。
+  const nameInvalid = child.isManaged && !name.trim()
 
   const save = async () => {
+    if (nameInvalid) return
     setSaving(true)
+    setError('')
     try {
-      await updateChildSettings(child.id, { name, dailyGoal: goal })
+      // 連携の子は名前を変更しない（不要な更新を避ける）
+      await updateChildSettings(child.id, {
+        name: child.isManaged ? name : undefined,
+        dailyGoal: goal,
+      })
       onDone()
-    } finally {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '保存に失敗しました。時間をおいて再試行してください。')
       setSaving(false)
     }
   }
@@ -223,10 +243,12 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
       : `${child.name}さんとの連携を解除します。よろしいですか？`
     if (!confirm(msg)) return
     setSaving(true)
+    setError('')
     try {
       await removeChild(child.id)
       onDone()
-    } finally {
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '削除に失敗しました。時間をおいて再試行してください。')
       setSaving(false)
     }
   }
@@ -248,6 +270,7 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
         <p className="mb-1 text-xs text-gray-500">1日の問題数</p>
         <GoalPicker value={goal} options={goalOptions} onChange={setGoal} />
       </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="flex gap-2">
         <button
           onClick={remove}
@@ -258,8 +281,8 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
         </button>
         <button
           onClick={save}
-          disabled={saving}
-          className="flex-1 rounded-lg bg-blue-500 py-2 text-sm font-bold text-white disabled:opacity-40"
+          disabled={saving || nameInvalid}
+          className="flex-1 rounded-lg bg-green-500 py-2 text-sm font-bold text-white disabled:opacity-40"
         >
           {saving ? '保存中...' : '保存'}
         </button>

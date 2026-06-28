@@ -5,6 +5,7 @@ import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
 import { buildQuestion, pickMode } from '@/lib/questions'
+import { jstDate } from '@/lib/date'
 import type { Word, UserWordProgress } from '@/types/database'
 import type { TodayStudyResult, StudyQuestion } from '@/types/api'
 
@@ -108,7 +109,7 @@ export async function getReviewStatus(studentId?: string): Promise<{
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = jstDate()
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
   // 学習済みの進捗（語の tier を同時取得して無料ユーザーは free のみ集計）
@@ -143,7 +144,7 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
-  const today = new Date().toISOString().split('T')[0]
+  const today = jstDate()
   const limit = await getDailyGoal(sid)
   // 無料は基本100語（tier=free）のみ、プレミアムは全語
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX

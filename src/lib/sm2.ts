@@ -1,5 +1,6 @@
 // SuperMemo SM-2 アルゴリズム（純粋関数 - 副作用なし）
 // 参考: https://www.supermemo.com/en/archives1990-2015/english/ol/sm2
+import { jstDate } from '@/lib/date'
 
 export interface SM2Input {
   quality: number        // 回答品質 0-5
@@ -41,14 +42,11 @@ export function calculateSM2({
     newReps = 0
   }
 
-  const nextDate = new Date()
-  nextDate.setDate(nextDate.getDate() + newInterval)
-
   return {
     repetitions: newReps,
     easinessFactor: newEF,
     intervalDays: newInterval,
-    nextReviewDate: nextDate.toISOString().split('T')[0],
+    nextReviewDate: jstDate(newInterval),  // JST の「今日 + 間隔日数」
   }
 }
 
