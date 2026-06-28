@@ -198,6 +198,21 @@ export interface ChildData {
   isManaged: boolean
   todaySession: { total_words: number; correct_words: number; completed_at: string | null } | null
   totalLearned: number
+  streak: number   // 連続学習日数（今日 or 昨日を起点に完了日が続いている数）
+}
+
+// 完了済みセッション日付の集合から、今日/昨日を起点とした連続日数を計算
+function calcStreak(dateSet: Set<string>, today: string): number {
+  const iso = (d: Date) => d.toISOString().split('T')[0]
+  const cur = new Date(today + 'T00:00:00Z')
+  // 今日まだ未完了でも、昨日まで続いていれば連続として数える
+  if (!dateSet.has(iso(cur))) cur.setUTCDate(cur.getUTCDate() - 1)
+  let streak = 0
+  while (dateSet.has(iso(cur))) {
+    streak++
+    cur.setUTCDate(cur.getUTCDate() - 1)
+  }
+  return streak
 }
 
 // 親の子どもリストと今日のセッション情報を取得
@@ -229,6 +244,16 @@ export async function getChildrenData(): Promise<ChildData[]> {
     .in('student_id', studentIds)
     .gt('repetitions', 0)
 
+  // 連続学習日数の計算用に、直近30日の完了済みセッション日付を取得
+  const thirtyAgo = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000)
+    .toISOString().split('T')[0]
+  const { data: completedSessions } = await admin
+    .from('study_sessions')
+    .select('student_id, session_date')
+    .in('student_id', studentIds)
+    .not('completed_at', 'is', null)
+    .gte('session_date', thirtyAgo)
+
   return relations.map(r => {
     const p = r.profiles as unknown as {
       display_name: string | null
@@ -238,6 +263,11 @@ export async function getChildrenData(): Promise<ChildData[]> {
     } | null
     const session = sessions?.find(s => s.student_id === r.student_id) ?? null
     const learned = progressCounts?.filter(pc => pc.student_id === r.student_id).length ?? 0
+    const dateSet = new Set(
+      (completedSessions ?? [])
+        .filter(s => s.student_id === r.student_id)
+        .map(s => s.session_date as string),
+    )
     return {
       id: r.student_id,
       name: p?.line_display_name ?? p?.display_name ?? '名前未設定',
@@ -245,6 +275,7 @@ export async function getChildrenData(): Promise<ChildData[]> {
       isManaged: p?.managed_by === parentId,
       todaySession: session,
       totalLearned: learned,
+      streak: calcStreak(dateSet, today),
     }
   })
 }
