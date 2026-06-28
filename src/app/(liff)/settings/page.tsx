@@ -1,9 +1,11 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
+import { getChildrenData } from '@/app/actions/parent'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { BottomNav } from '@/components/BottomNav'
 import { SettingsClient } from './SettingsClient'
+import { ChildrenManager } from './ChildrenManager'
 import { UpgradeButton } from './UpgradeButton'
 import type { NotificationChannel } from '@/types/database'
 
@@ -22,6 +24,7 @@ export default async function SettingsPage() {
   const max = await getStudentDailyMax(user.id)
   const premium = max > 20
   const displayName = profile?.line_display_name ?? profile?.display_name ?? ''
+  const children = isParent ? await getChildrenData() : []
 
   return (
     <div className="min-h-dvh bg-gray-50 pb-24">
@@ -31,6 +34,9 @@ export default async function SettingsPage() {
       </header>
 
       <div className="px-5 mt-4 flex flex-col gap-4">
+        {/* こども管理（親のみ）: 追加・編集・連携・削除 */}
+        {isParent && <ChildrenManager children={children} premium={premium} />}
+
         {/* 1日の問題数（4問含む・親がロック中は読み取り専用） */}
         <SelfGoalSetting
           current={profile?.daily_goal ?? 10}
