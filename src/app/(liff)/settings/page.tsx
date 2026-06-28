@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
 import { getChildrenData } from '@/app/actions/parent'
+import { displayNameOf } from '@/lib/profile'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { BottomNav } from '@/components/BottomNav'
 import { LogoutButton } from '@/components/LogoutButton'
@@ -25,7 +26,7 @@ export default async function SettingsPage() {
   const isParent = profile?.role === 'parent'
   const max = await getStudentDailyMax(user.id)
   const premium = max > 20
-  const displayName = profile?.line_display_name ?? profile?.display_name ?? ''
+  const displayName = displayNameOf(profile)
   const children = isParent ? await getChildrenData() : []
 
   return (

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getTodayStudyWords } from '@/app/actions/study'
+import { displayNameOf } from '@/lib/profile'
 import { StudyClient } from './StudyClient'
 
 export default async function StudyPage({
@@ -31,7 +32,7 @@ export default async function StudyPage({
       .select('display_name, line_display_name')
       .eq('id', child)
       .single()
-    studentName = cp?.line_display_name ?? cp?.display_name ?? undefined
+    studentName = displayNameOf(cp) || undefined
   }
 
   // 認可は getTodayStudyWords 内（authorizeStudent）で行う。失敗時は戻す。

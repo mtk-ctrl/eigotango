@@ -2,14 +2,14 @@
 
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { jstDate } from '@/lib/date'
+import { displayNameOf } from '@/lib/profile'
+import { parentOwnsChild } from '@/lib/relations'
+import { MANAGED_EMAIL_DOMAIN, PREMIUM_DAILY_MAX, DEFAULT_DAILY_GOAL } from '@/lib/constants'
 
 const randomUUID = () => crypto.randomUUID()
 
-const DAILY_GOAL_MIN = 1
-const DAILY_GOAL_MAX = 100
-
 function clampGoal(goal: number): number {
-  return Math.min(Math.max(Math.round(goal), DAILY_GOAL_MIN), DAILY_GOAL_MAX)
+  return Math.min(Math.max(Math.round(goal), 1), PREMIUM_DAILY_MAX)
 }
 
 // ログイン中の親 ID を取得（parent ロール検証付き）
@@ -22,25 +22,9 @@ async function requireParent(): Promise<string> {
 
 // この子（managed or paired）がログイン中の親のものか検証
 async function assertOwnsChild(parentId: string, childId: string): Promise<void> {
-  const admin = createAdminClient()
-  const { data: managed } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('id', childId)
-    .eq('managed_by', parentId)
-    .maybeSingle()
-  if (managed) return
-
-  const { data: rel } = await admin
-    .from('student_parent_relations')
-    .select('id')
-    .eq('parent_id', parentId)
-    .eq('student_id', childId)
-    .not('paired_at', 'is', null)
-    .maybeSingle()
-  if (rel) return
-
-  throw new Error('この子どもを操作する権限がありません')
+  if (!(await parentOwnsChild(parentId, childId))) {
+    throw new Error('この子どもを操作する権限がありません')
+  }
 }
 
 // 端末管理の子ども（ログイン不要）を追加。名前 + 1日の問題数。
@@ -52,7 +36,7 @@ export async function addManagedChild(name: string, dailyGoal: number): Promise<
   const admin = createAdminClient()
 
   // ログインに使われない合成アカウントを作成（trigger が profiles を自動作成）
-  const email = `child-${randomUUID()}@managed.eigotango.local`
+  const email = `child-${randomUUID()}${MANAGED_EMAIL_DOMAIN}`
   const password = randomUUID() + randomUUID()
   const { data: created, error } = await admin.auth.admin.createUser({
     email,
@@ -270,8 +254,8 @@ export async function getChildrenData(): Promise<ChildData[]> {
     )
     return {
       id: r.student_id,
-      name: p?.line_display_name ?? p?.display_name ?? '名前未設定',
-      dailyGoal: p?.daily_goal ?? 10,
+      name: displayNameOf(p, '名前未設定'),
+      dailyGoal: p?.daily_goal ?? DEFAULT_DAILY_GOAL,
       isManaged: p?.managed_by === parentId,
       todaySession: session,
       totalLearned: learned,

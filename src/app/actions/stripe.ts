@@ -2,6 +2,7 @@
 
 import { getStripe } from '@/lib/stripe'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+import { displayNameOf } from '@/lib/profile'
 
 // Stripe Checkout セッションを作成してURLを返す
 export async function createCheckoutSession(): Promise<{ url: string }> {
@@ -29,7 +30,7 @@ export async function createCheckoutSession(): Promise<{ url: string }> {
       .single()
 
     const customer = await stripe.customers.create({
-      name: profile?.line_display_name ?? profile?.display_name ?? undefined,
+      name: displayNameOf(profile) || undefined,
       metadata: { supabase_user_id: user.id },
     })
     customerId = customer.id

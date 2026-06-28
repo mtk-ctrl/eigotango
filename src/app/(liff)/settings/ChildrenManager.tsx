@@ -9,15 +9,14 @@ import {
   generatePairingCode,
   type ChildData,
 } from '@/app/actions/parent'
-
-const GOAL_OPTIONS = [3, 4, 5, 10, 15, 20]
+import { GoalPicker } from '@/components/GoalPicker'
+import { goalOptionsFor, FREE_DAILY_MAX, PREMIUM_DAILY_MAX } from '@/lib/constants'
 
 // せってい内の「こども管理」: 追加・名前/問題数の編集・連携・削除。
 // ホームは状況閲覧と学習導線に専念し、管理はここに集約する。
 export function ChildrenManager({ children, premium }: { children: ChildData[]; premium: boolean }) {
   const router = useRouter()
-  const goalMax = premium ? 100 : 20
-  const goalOptions = GOAL_OPTIONS.filter(n => n <= goalMax).concat(premium ? [30, 50] : [])
+  const goalOptions = goalOptionsFor(premium ? PREMIUM_DAILY_MAX : FREE_DAILY_MAX)
 
   const [addMode, setAddMode] = useState<null | 'managed' | 'pairing'>(null)
   const [newName, setNewName] = useState('')
@@ -188,24 +187,6 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
           )}
         </div>
       )}
-    </div>
-  )
-}
-
-// 1日の問題数ピッカー
-function GoalPicker({ value, options, onChange }: { value: number; options: number[]; onChange: (n: number) => void }) {
-  const opts = options.includes(value) ? options : [...options, value].sort((a, b) => a - b)
-  return (
-    <div className="flex flex-wrap gap-2">
-      {opts.map(n => (
-        <button
-          key={n}
-          onClick={() => onChange(n)}
-          className={`rounded-lg px-3 py-2 text-sm font-bold ${value === n ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'}`}
-        >
-          {n}語
-        </button>
-      ))}
     </div>
   )
 }

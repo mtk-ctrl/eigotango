@@ -6,12 +6,15 @@ import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
 import { buildQuestion, pickMode } from '@/lib/questions'
 import { jstDate } from '@/lib/date'
+import { displayNameOf } from '@/lib/profile'
+import { parentOwnsChild } from '@/lib/relations'
+import {
+  FREE_DAILY_MAX as FREE_MAX,
+  PREMIUM_DAILY_MAX as PREMIUM_MAX,
+  DEFAULT_DAILY_GOAL,
+} from '@/lib/constants'
 import type { Word, UserWordProgress } from '@/types/database'
 import type { TodayStudyResult, StudyQuestion } from '@/types/api'
-
-// プラン別の1日の出題上限（daily_goal をこの範囲にクランプ）
-const FREE_MAX = 20
-const PREMIUM_MAX = 100
 
 // 現在のログインユーザー ID
 async function currentUserId(): Promise<string | null> {
@@ -26,25 +29,7 @@ async function authorizeStudent(studentId: string): Promise<string> {
   const uid = await currentUserId()
   if (!uid) throw new Error('Unauthorized')
   if (studentId === uid) return uid
-
-  const admin = createAdminClient()
-  const { data: rel } = await admin
-    .from('student_parent_relations')
-    .select('id')
-    .eq('parent_id', uid)
-    .eq('student_id', studentId)
-    .not('paired_at', 'is', null)
-    .maybeSingle()
-  if (rel) return uid
-
-  const { data: managed } = await admin
-    .from('profiles')
-    .select('id')
-    .eq('id', studentId)
-    .eq('managed_by', uid)
-    .maybeSingle()
-  if (managed) return uid
-
+  if (await parentOwnsChild(uid, studentId)) return uid
   throw new Error('Forbidden')
 }
 
@@ -90,7 +75,7 @@ async function getDailyGoal(studentId: string): Promise<number> {
     .single()
 
   const max = await getStudentDailyMax(studentId)
-  return Math.min(Math.max(profile?.daily_goal ?? 10, 1), max)
+  return Math.min(Math.max(profile?.daily_goal ?? DEFAULT_DAILY_GOAL, 1), max)
 }
 
 // 復習リマインド用のステータス（解き忘れ＝期限切れの可視化）。
@@ -315,7 +300,7 @@ export async function completeSession(
       .eq('id', studentId)
       .single()
 
-    const name = me?.line_display_name ?? me?.display_name ?? '子ども'
+    const name = displayNameOf(me, '子ども')
 
     // 通知先の親を特定（端末管理 → ペアリング）
     let parentId = me?.managed_by ?? null
