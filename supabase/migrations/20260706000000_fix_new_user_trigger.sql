@@ -1,4 +1,5 @@
--- handle_new_user を堅牢化（search_path 明示・ON CONFLICT・例外時もユーザー作成を止めない）
+-- handle_new_user を堅牢化（search_path 明示・ON CONFLICT）。
+-- 例外は握り潰さず、失敗時はロールバックして孤立 Auth ユーザーを防ぐ。
 create or replace function handle_new_user()
 returns trigger
 language plpgsql
@@ -14,9 +15,6 @@ begin
     new.email
   )
   on conflict (id) do nothing;
-  return new;
-exception when others then
-  raise warning 'handle_new_user failed: %', sqlerrm;
   return new;
 end;
 $$;
