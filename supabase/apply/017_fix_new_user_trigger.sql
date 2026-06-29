@@ -1,7 +1,8 @@
 -- handle_new_user を堅牢化（冪等）。
--- - search_path を明示（SECURITY DEFINER の解決先を固定）
+-- - search_path を明示（SECURITY DEFINER の解決先を固定 → 500 の主因だったスキーマ解決失敗を解消）
 -- - ON CONFLICT (id) DO NOTHING（再実行・二重発火に耐える）
--- - 例外を握って RETURN NEW（プロフィール作成失敗で auth ユーザー作成自体を 500 にしない）
+-- 例外は握り潰さない: 想定外の失敗時はロールバックして auth ユーザー作成ごとキャンセルし、
+-- プロフィールの無い孤立 Auth ユーザーが生まれないようにする（ユーザーは再試行可能）。
 create or replace function handle_new_user()
 returns trigger
 language plpgsql
@@ -17,9 +18,6 @@ begin
     new.email
   )
   on conflict (id) do nothing;
-  return new;
-exception when others then
-  raise warning 'handle_new_user failed: %', sqlerrm;
   return new;
 end;
 $$;
