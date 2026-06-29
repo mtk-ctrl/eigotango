@@ -9,7 +9,8 @@ export const FREE_DAILY_MAX = 20
 export const PREMIUM_DAILY_MAX = 100
 
 // 端末管理の子ども（ログイン不要）の合成メールのドメイン
-export const MANAGED_EMAIL_DOMAIN = '@managed.eigotango.local'
+// （.local など予約 TLD は GoTrue のメール検証で弾かれることがあるため通常の gTLD を使う）
+export const MANAGED_EMAIL_DOMAIN = '@managed.eigotango.app'
 
 // プラン上限 max に応じた問題数の選択肢（max 以下のみ）
 export function goalOptionsFor(max: number): number[] {
