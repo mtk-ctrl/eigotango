@@ -12,6 +12,20 @@ function clampGoal(goal: number): number {
   return Math.min(Math.max(Math.round(goal), 1), PREMIUM_DAILY_MAX)
 }
 
+// エラーの詳細をできるだけ拾って文字列化（本番で原因を読めるようにする）
+function describeError(e: unknown): string {
+  if (!e) return 'ユーザーが返りませんでした'
+  if (typeof e === 'string') return e
+  const o = e as { name?: string; status?: number; code?: string; message?: string }
+  const parts = [o.name, o.status, o.code, o.message].filter(v => v !== undefined && v !== null && v !== '')
+  if (parts.length) return parts.join(' / ')
+  try {
+    const j = JSON.stringify(e)
+    if (j && j !== '{}') return j
+  } catch { /* noop */ }
+  return String(e)
+}
+
 // ログイン中の親 ID を取得（parent ロール検証付き）
 async function requireParent(): Promise<string> {
   const supabase = await createClient()
@@ -43,14 +57,23 @@ export async function addManagedChild(name: string, dailyGoal: number): Promise<
     // ログインに使われない合成アカウントを作成（trigger が profiles を自動作成）
     const email = `child-${randomUUID()}${MANAGED_EMAIL_DOMAIN}`
     const password = randomUUID()  // 36文字・十分ランダム（72文字上限に余裕）
-    const { data: created, error } = await admin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { role: 'student', display_name: trimmed },
-    })
-    if (error || !created?.user) {
-      return { ok: false, error: `アカウント作成に失敗: ${error?.message ?? '不明なエラー'}` }
+
+    let created: Awaited<ReturnType<typeof admin.auth.admin.createUser>>['data'] | null = null
+    let createErr: unknown = null
+    try {
+      const r = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { role: 'student', display_name: trimmed },
+      })
+      created = r.data
+      createErr = r.error
+    } catch (ex) {
+      createErr = ex
+    }
+    if (createErr || !created?.user) {
+      return { ok: false, error: `アカウント作成に失敗: ${describeError(createErr)}` }
     }
 
     const childId = created.user.id
