@@ -1,15 +1,18 @@
 import Link from 'next/link'
 import type { ChildData } from '@/app/actions/parent'
+import { DailyWords } from '@/components/DailyWords'
+import type { DailyWords as DailyWordsData } from '@/app/actions/study'
 
 interface Props {
   name: string
   premium: boolean
   children: ChildData[]
+  dailyWords: DailyWordsData
 }
 
 // 親のホーム。親が一番知りたい「今日やった？／続いてる？／何をすればいい？」を
 // 各子カードの主役に置く。追加・編集などの管理は「せってい」に集約。
-export function ParentHome({ name, premium, children }: Props) {
+export function ParentHome({ name, premium, children, dailyWords }: Props) {
   const today = new Date().toLocaleDateString('ja-JP', {
     timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short',
   })
@@ -76,6 +79,11 @@ export function ParentHome({ name, premium, children }: Props) {
               自分の学習きろくを見る
             </Link>
           </div>
+        </section>
+
+        {/* 昨日・今日・明日の単語（自分の学習・コピー可） */}
+        <section>
+          <DailyWords data={dailyWords} />
         </section>
       </div>
     </div>

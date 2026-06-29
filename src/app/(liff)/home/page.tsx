@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChildrenData } from '@/app/actions/parent'
-import { getReviewStatus, getStudentDailyMax } from '@/app/actions/study'
+import { getReviewStatus, getStudentDailyMax, getDailyWords } from '@/app/actions/study'
 import { displayNameOf } from '@/lib/profile'
 import { BottomNav } from '@/components/BottomNav'
 import { ParentHome } from './ParentHome'
@@ -21,7 +21,7 @@ export default async function HomePage() {
   const name = displayNameOf(profile)
 
   if (profile?.role === 'parent') {
-    const [children, subscription] = await Promise.all([
+    const [children, subscription, dailyWords] = await Promise.all([
       getChildrenData(),
       supabase
         .from('subscriptions')
@@ -29,22 +29,24 @@ export default async function HomePage() {
         .eq('parent_id', user.id)
         .single()
         .then(r => r.data),
+      getDailyWords(user.id),
     ])
     return (
       <>
-        <ParentHome name={name} premium={subscription?.plan === 'premium'} children={children} />
+        <ParentHome name={name} premium={subscription?.plan === 'premium'} children={children} dailyWords={dailyWords} />
         <BottomNav role="parent" />
       </>
     )
   }
 
-  const [review, max] = await Promise.all([
+  const [review, max, dailyWords] = await Promise.all([
     getReviewStatus(user.id),
     getStudentDailyMax(user.id),
+    getDailyWords(user.id),
   ])
   return (
     <>
-      <StudentHome name={name} premium={max > 20} review={review} />
+      <StudentHome name={name} premium={max > 20} review={review} dailyWords={dailyWords} />
       <BottomNav role="student" />
     </>
   )
