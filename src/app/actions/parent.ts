@@ -78,13 +78,16 @@ export async function addManagedChild(name: string, dailyGoal: number): Promise<
 
     const childId = created.user.id
 
-    const { error: upErr } = await admin.from('profiles').update({
+    // トリガがプロフィールを作るが、失敗時に備えて upsert で確実に作成/更新する
+    const { error: upErr } = await admin.from('profiles').upsert({
+      id: childId,
       role: 'student',
       display_name: trimmed,
+      email,
       daily_goal: clampGoal(dailyGoal),
       daily_goal_locked: true,
       managed_by: parentId,
-    }).eq('id', childId)
+    }, { onConflict: 'id' })
     if (upErr) {
       await admin.auth.admin.deleteUser(childId).catch(() => {})
       return { ok: false, error: `プロフィール更新に失敗: ${upErr.message}` }
