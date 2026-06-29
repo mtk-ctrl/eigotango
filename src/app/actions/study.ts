@@ -121,6 +121,87 @@ export async function getReviewStatus(studentId?: string): Promise<{
   return { due, overdue, newRemaining, dailyGoal }
 }
 
+export interface DailyWord { word: string; meaning: string }
+export interface DailyWords {
+  yesterday: DailyWord[]
+  today: DailyWord[]
+  tomorrow: DailyWord[]
+}
+
+// 昨日・今日・明日の単語一覧（コピー用）。
+// 過去/当日は「その日のセッションで解いた語」、未来は「その日に復習予定の語」を集める。
+// 当日は未学習でも「今日復習予定の語」を含める。
+export async function getDailyWords(studentId?: string): Promise<DailyWords> {
+  const empty: DailyWords = { yesterday: [], today: [], tomorrow: [] }
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return empty
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const y = jstDate(-1)
+  const t = jstDate()
+  const tm = jstDate(1)
+  const dates = [y, t, tm]
+
+  // 1) 各日のセッションと、その回答（解いた語）
+  const { data: sessions } = await admin
+    .from('study_sessions')
+    .select('id, session_date')
+    .eq('student_id', sid)
+    .in('session_date', dates)
+  const sessionIdToDate = new Map<string, string>()
+  for (const s of sessions ?? []) sessionIdToDate.set(s.id as string, s.session_date as string)
+  const sessionIds = [...sessionIdToDate.keys()]
+
+  let answers: { session_id: string; word_id: string }[] = []
+  if (sessionIds.length > 0) {
+    const { data } = await admin
+      .from('session_answers')
+      .select('session_id, word_id')
+      .in('session_id', sessionIds)
+    answers = (data ?? []) as { session_id: string; word_id: string }[]
+  }
+
+  // 2) 各日に復習予定の語（next_review_date が該当日）
+  const { data: progress } = await admin
+    .from('user_word_progress')
+    .select('word_id, next_review_date')
+    .eq('student_id', sid)
+    .in('next_review_date', dates)
+
+  // 日付ごとに word_id を集約
+  const idsByDate: Record<string, Set<string>> = { [y]: new Set(), [t]: new Set(), [tm]: new Set() }
+  for (const a of answers) {
+    const date = sessionIdToDate.get(a.session_id)
+    if (date && idsByDate[date]) idsByDate[date].add(a.word_id)
+  }
+  for (const p of progress ?? []) {
+    const date = p.next_review_date as string
+    if (idsByDate[date]) idsByDate[date].add(p.word_id as string)
+  }
+
+  // 語の本文を一括取得
+  const allIds = [...new Set([...idsByDate[y], ...idsByDate[t], ...idsByDate[tm]])]
+  const wordMap = new Map<string, DailyWord>()
+  if (allIds.length > 0) {
+    const { data: words } = await admin
+      .from('words')
+      .select('id, word, meaning')
+      .in('id', allIds)
+    for (const w of words ?? []) {
+      wordMap.set(w.id as string, { word: w.word as string, meaning: w.meaning as string })
+    }
+  }
+
+  const toList = (set: Set<string>) =>
+    [...set]
+      .map(id => wordMap.get(id))
+      .filter((w): w is DailyWord => !!w)
+      .sort((a, b) => a.word.localeCompare(b.word))
+
+  return { yesterday: toList(idsByDate[y]), today: toList(idsByDate[t]), tomorrow: toList(idsByDate[tm]) }
+}
+
 // 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
 // studentId 省略時はログイン中の本人。指定時は親が子の代わりに取得（要認可）。
 export async function getTodayStudyWords(studentId?: string): Promise<TodayStudyResult> {

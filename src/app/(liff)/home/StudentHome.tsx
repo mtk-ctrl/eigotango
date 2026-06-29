@@ -1,13 +1,16 @@
 import Link from 'next/link'
+import { DailyWords } from '@/components/DailyWords'
+import type { DailyWords as DailyWordsData } from '@/app/actions/study'
 
 interface Props {
   name: string
   premium: boolean
   review: { due: number; overdue: number; newRemaining: number; dailyGoal: number }
+  dailyWords: DailyWordsData
 }
 
 // 生徒（本人学習）のホーム。今日の学習を最も目立つ1アクションに。
-export function StudentHome({ name, premium, review }: Props) {
+export function StudentHome({ name, premium, review, dailyWords }: Props) {
   const { due, overdue, newRemaining, dailyGoal } = review
   const hasWork = due > 0 || newRemaining > 0
 
@@ -73,6 +76,9 @@ export function StudentHome({ name, premium, review }: Props) {
           <span className="font-bold text-gray-700">📈 学習の記録を見る</span>
           <span className="text-gray-300">›</span>
         </Link>
+
+        {/* 昨日・今日・明日の単語（コピー可） */}
+        <DailyWords data={dailyWords} />
       </main>
     </div>
   )
