@@ -28,39 +28,59 @@ async function assertOwnsChild(parentId: string, childId: string): Promise<void>
 }
 
 // 端末管理の子ども（ログイン不要）を追加。名前 + 1日の問題数。
-export async function addManagedChild(name: string, dailyGoal: number): Promise<void> {
-  const parentId = await requireParent()
-  const trimmed = name.trim()
-  if (!trimmed) throw new Error('名前を入力してください')
+export type AddChildResult = { ok: true } | { ok: false; error: string }
 
-  const admin = createAdminClient()
+// throw すると本番ビルドでは Server Action のエラー詳細が伏せられるため、
+// 失敗理由は戻り値で返してUIに表示する。
+export async function addManagedChild(name: string, dailyGoal: number): Promise<AddChildResult> {
+  try {
+    const parentId = await requireParent()
+    const trimmed = name.trim()
+    if (!trimmed) return { ok: false, error: '名前を入力してください' }
 
-  // ログインに使われない合成アカウントを作成（trigger が profiles を自動作成）
-  const email = `child-${randomUUID()}${MANAGED_EMAIL_DOMAIN}`
-  const password = randomUUID() + randomUUID()
-  const { data: created, error } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { role: 'student', display_name: trimmed },
-  })
-  if (error || !created?.user) throw new Error(error?.message ?? '子どもの作成に失敗しました')
+    const admin = createAdminClient()
 
-  const childId = created.user.id
+    // ログインに使われない合成アカウントを作成（trigger が profiles を自動作成）
+    const email = `child-${randomUUID()}${MANAGED_EMAIL_DOMAIN}`
+    const password = randomUUID()  // 36文字・十分ランダム（72文字上限に余裕）
+    const { data: created, error } = await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { role: 'student', display_name: trimmed },
+    })
+    if (error || !created?.user) {
+      return { ok: false, error: `アカウント作成に失敗: ${error?.message ?? '不明なエラー'}` }
+    }
 
-  await admin.from('profiles').update({
-    role: 'student',
-    display_name: trimmed,
-    daily_goal: clampGoal(dailyGoal),
-    daily_goal_locked: true,
-    managed_by: parentId,
-  }).eq('id', childId)
+    const childId = created.user.id
 
-  await admin.from('student_parent_relations').insert({
-    student_id: childId,
-    parent_id: parentId,
-    paired_at: new Date().toISOString(),
-  })
+    const { error: upErr } = await admin.from('profiles').update({
+      role: 'student',
+      display_name: trimmed,
+      daily_goal: clampGoal(dailyGoal),
+      daily_goal_locked: true,
+      managed_by: parentId,
+    }).eq('id', childId)
+    if (upErr) {
+      await admin.auth.admin.deleteUser(childId).catch(() => {})
+      return { ok: false, error: `プロフィール更新に失敗: ${upErr.message}` }
+    }
+
+    const { error: relErr } = await admin.from('student_parent_relations').insert({
+      student_id: childId,
+      parent_id: parentId,
+      paired_at: new Date().toISOString(),
+    })
+    if (relErr) {
+      await admin.auth.admin.deleteUser(childId).catch(() => {})
+      return { ok: false, error: `連携の作成に失敗: ${relErr.message}` }
+    }
+
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '追加に失敗しました' }
+  }
 }
 
 // 子どもの名前・1日の問題数を更新（親が設定 → ロック）
