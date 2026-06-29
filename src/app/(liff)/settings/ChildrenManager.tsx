@@ -32,7 +32,11 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
     setAdding(true)
     setAddError('')
     try {
-      await addManagedChild(newName.trim(), newGoal)
+      const res = await addManagedChild(newName.trim(), newGoal)
+      if (!res.ok) {
+        setAddError(res.error)
+        return
+      }
       setNewName('')
       setNewGoal(10)
       setAddMode(null)
