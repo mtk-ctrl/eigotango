@@ -128,9 +128,11 @@ export interface DailyWords {
   tomorrow: DailyWord[]
 }
 
-// 昨日・今日・明日の単語一覧（コピー用）。
-// 過去/当日は「その日のセッションで解いた語」、未来は「その日に復習予定の語」を集める。
-// 当日は未学習でも「今日復習予定の語」を含める。
+// 昨日・今日・明日の単語一覧（コピー用・プッシュ型カリキュラム）。
+// 設定の問題数 N を1日分として、易しい順（学年→難易度→アルファベット）に N 語ずつ配る:
+//   今日   = 次に学ぶ N 語（未学習の先頭）
+//   明日   = そのさらに次の N 語
+//   昨日   = 直近に学んだ N 語（first_learned_at 降順）
 export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const empty: DailyWords = { yesterday: [], today: [], tomorrow: [] }
   const sid = studentId ?? (await currentUserId())
@@ -138,68 +140,50 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
-  const y = jstDate(-1)
-  const t = jstDate()
-  const tm = jstDate(1)
-  const dates = [y, t, tm]
+  const goal = await getDailyGoal(sid)
+  const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
-  // 1) 各日のセッションと、その回答（解いた語）
-  const { data: sessions } = await admin
-    .from('study_sessions')
-    .select('id, session_date')
-    .eq('student_id', sid)
-    .in('session_date', dates)
-  const sessionIdToDate = new Map<string, string>()
-  for (const s of sessions ?? []) sessionIdToDate.set(s.id as string, s.session_date as string)
-  const sessionIds = [...sessionIdToDate.keys()]
-
-  let answers: { session_id: string; word_id: string }[] = []
-  if (sessionIds.length > 0) {
-    const { data } = await admin
-      .from('session_answers')
-      .select('session_id, word_id')
-      .in('session_id', sessionIds)
-    answers = (data ?? []) as { session_id: string; word_id: string }[]
-  }
-
-  // 2) 各日に復習予定の語（next_review_date が該当日）
-  const { data: progress } = await admin
+  // 学習済み（word_id と初回学習日時）
+  const { data: progressRows } = await admin
     .from('user_word_progress')
-    .select('word_id, next_review_date')
+    .select('word_id, first_learned_at')
     .eq('student_id', sid)
-    .in('next_review_date', dates)
+  const learned = (progressRows ?? []) as { word_id: string; first_learned_at: string | null }[]
+  const learnedIds = new Set(learned.map(r => r.word_id))
 
-  // 日付ごとに word_id を集約
-  const idsByDate: Record<string, Set<string>> = { [y]: new Set(), [t]: new Set(), [tm]: new Set() }
-  for (const a of answers) {
-    const date = sessionIdToDate.get(a.session_id)
-    if (date && idsByDate[date]) idsByDate[date].add(a.word_id)
-  }
-  for (const p of progress ?? []) {
-    const date = p.next_review_date as string
-    if (idsByDate[date]) idsByDate[date].add(p.word_id as string)
-  }
+  // 利用可能な語（tier 範囲）を取得し、易しい順に並べる
+  let wq = admin.from('words').select('id, word, meaning, grade, level').order('grade', { ascending: true })
+  if (!premium) wq = wq.eq('tier', 'free')
+  const { data: allWords } = await wq
 
-  // 語の本文を一括取得
-  const allIds = [...new Set([...idsByDate[y], ...idsByDate[t], ...idsByDate[tm]])]
-  const wordMap = new Map<string, DailyWord>()
-  if (allIds.length > 0) {
-    const { data: words } = await admin
-      .from('words')
-      .select('id, word, meaning')
-      .in('id', allIds)
-    for (const w of words ?? []) {
-      wordMap.set(w.id as string, { word: w.word as string, meaning: w.meaning as string })
-    }
-  }
+  const gradeRank: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
+  const levelRank: Record<string, number> = { '基礎': 1, '標準': 2, '難関': 3 }
+  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null }
+  const sorted = ((allWords ?? []) as WRow[]).slice().sort((a, b) => {
+    const ga = gradeRank[a.grade ?? ''] ?? 4
+    const gb = gradeRank[b.grade ?? ''] ?? 4
+    if (ga !== gb) return ga - gb
+    const la = levelRank[a.level ?? ''] ?? 2
+    const lb = levelRank[b.level ?? ''] ?? 2
+    if (la !== lb) return la - lb
+    return a.word.localeCompare(b.word)
+  })
+  const wordById = new Map(sorted.map(w => [w.id, w]))
+  const toDW = (w: WRow): DailyWord => ({ word: w.word, meaning: w.meaning })
 
-  const toList = (set: Set<string>) =>
-    [...set]
-      .map(id => wordMap.get(id))
-      .filter((w): w is DailyWord => !!w)
-      .sort((a, b) => a.word.localeCompare(b.word))
+  // 今日・明日 = 未学習の先頭から N 語ずつ
+  const upcoming = sorted.filter(w => !learnedIds.has(w.id))
+  const today = upcoming.slice(0, goal).map(toDW)
+  const tomorrow = upcoming.slice(goal, goal * 2).map(toDW)
 
-  return { yesterday: toList(idsByDate[y]), today: toList(idsByDate[t]), tomorrow: toList(idsByDate[tm]) }
+  // 昨日 = 直近に学んだ N 語
+  const yesterday = learned
+    .filter(r => wordById.has(r.word_id))
+    .sort((a, b) => (b.first_learned_at ?? '').localeCompare(a.first_learned_at ?? ''))
+    .slice(0, goal)
+    .map(r => toDW(wordById.get(r.word_id)!))
+
+  return { yesterday, today, tomorrow }
 }
 
 // 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
