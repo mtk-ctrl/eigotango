@@ -20,7 +20,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name, line_display_name, email, daily_goal, daily_goal_locked, notification_channel, line_user_id')
+    .select('role, display_name, line_display_name, email, daily_goal, new_per_day, daily_goal_locked, notification_channel, line_user_id')
     .eq('id', user.id)
     .single()
 
@@ -54,8 +54,15 @@ export default async function SettingsPage() {
           <span className="text-gray-300">›</span>
         </Link>
 
-        {/* 1日の問題数（4問含む・親がロック中は読み取り専用） */}
+        {/* 学習量（新規／復習を別々に。親がロック中は読み取り専用） */}
         <SelfGoalSetting
+          kind="new"
+          current={profile?.new_per_day ?? 3}
+          locked={profile?.daily_goal_locked ?? false}
+          max={max}
+        />
+        <SelfGoalSetting
+          kind="review"
           current={profile?.daily_goal ?? 10}
           locked={profile?.daily_goal_locked ?? false}
           max={max}

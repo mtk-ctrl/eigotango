@@ -63,16 +63,20 @@ export function ParentHome({ name, premium, children, dailyWords }: Props) {
         {/* 自分でも学習する（副次・控えめ） */}
         <section>
           <div className="rounded-2xl bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-bold text-gray-700">自分でも学習する</p>
-                <p className="text-xs text-gray-400">保護者の方も問題に挑戦できます</p>
-              </div>
+            <p className="font-bold text-gray-700">自分でも学習する</p>
+            <p className="text-xs text-gray-400">保護者の方も問題に挑戦できます</p>
+            <div className="mt-3 flex gap-2">
               <Link
                 href="/study"
-                className="rounded-full bg-green-500 px-4 py-2 text-sm font-bold text-white active:scale-95 transition-transform"
+                className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
               >
-                はじめる →
+                📚 新しい単語
+              </Link>
+              <Link
+                href="/review"
+                className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                🔁 復習
               </Link>
             </div>
             <Link href="/progress" className="mt-2 block text-xs text-gray-400 underline">
@@ -143,11 +147,17 @@ function ChildCard({ child }: { child: ChildData }) {
               href={`/study?child=${child.id}`}
               className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
             >
-              {completed ? 'もう一度' : inProgress ? '続きから' : 'この端末で学習する →'}
+              📚 新しい単語
+            </Link>
+            <Link
+              href={`/review?child=${child.id}`}
+              className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+            >
+              🔁 復習
             </Link>
             <Link
               href={`/progress?child=${child.id}`}
-              className="rounded-xl bg-gray-100 px-4 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
+              className="rounded-xl bg-gray-100 px-3 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
             >
               きろく
             </Link>

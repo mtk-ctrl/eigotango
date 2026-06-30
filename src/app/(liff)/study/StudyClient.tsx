@@ -21,11 +21,15 @@ interface Props {
   returnTo: string       // 「やめる」「ホームへ戻る」の戻り先
   recordsHref: string    // 学習記録（進捗）へのリンク
   showLogout: boolean    // 本人ログイン時のみログアウトを出す
+  mode?: 'new' | 'review'  // 文言の出し分け（新規 / 復習）
 }
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ questions, sessionId, studentId, studentName, returnTo, recordsHref, showLogout }: Props) {
+export function StudyClient({ questions, sessionId, studentId, studentName, returnTo, recordsHref, showLogout, mode = 'new' }: Props) {
+  const isReview = mode === 'review'
+  const doneTitle = isReview ? '今日の復習完了！' : '今日の学習完了！'
+  const emptyTitle = isReview ? '今日の復習はありません' : '新しい単語は今日のぶん完了！'
   const router = useRouter()
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('input')
@@ -52,8 +56,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
 
   const handleNext = useCallback(async () => {
     if (isLast) {
-      const correct = qualities.filter(q => q >= 3).length
-      await completeSession(studentId, sessionId, correct, questions.length)
+      await completeSession(studentId, sessionId)
       setPhase('complete')
     } else {
       setIndex(i => i + 1)
@@ -93,7 +96,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
       <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center gap-6">
         <div>
           <p className="text-5xl mb-4">🌟</p>
-          <p className="text-xl font-bold">今日の学習は完了！</p>
+          <p className="text-xl font-bold">{emptyTitle}</p>
           <p className="text-gray-500 mt-2">また明日チャレンジしよう</p>
         </div>
         <div className="flex flex-col gap-3 w-full max-w-xs">
@@ -118,7 +121,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
       <div className="min-h-dvh flex flex-col items-center justify-center p-6 text-center gap-6">
         <div>
           <p className="text-6xl mb-4">🎉</p>
-          <h1 className="text-2xl font-bold mb-2">今日の学習完了！</h1>
+          <h1 className="text-2xl font-bold mb-2">{doneTitle}</h1>
           <p className="text-gray-600 text-lg">
             {questions.length}問中{' '}
             <span className="font-bold text-green-600">{correct}問</span> 正解
