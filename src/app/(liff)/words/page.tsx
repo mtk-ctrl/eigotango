@@ -1,16 +1,19 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getUpcomingWords } from '@/app/actions/study'
+import { getUpcomingWords, getKnownWords } from '@/app/actions/study'
 import { WordsSkipClient } from './WordsSkipClient'
 
-// 今後学ぶ予定の語を一覧表示し、理解済みをチェックでスキップする。
+// 今後学ぶ予定の語を一覧表示し、理解済みをチェックで即スキップする。
 export default async function WordsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const words = await getUpcomingWords(100, user.id)
+  const [words, known] = await Promise.all([
+    getUpcomingWords(120, user.id),
+    getKnownWords(user.id),
+  ])
 
   return (
     <div className="min-h-dvh bg-gray-50">
@@ -18,8 +21,14 @@ export default async function WordsPage() {
         <Link href="/settings" className="text-xs text-gray-400 underline">← せってい</Link>
         <h1 className="mt-1 text-2xl font-bold text-gray-800">単語をスキップ</h1>
         <p className="text-sm text-gray-400">
-          すでに理解している単語にチェックを入れると、毎日の出題から外れます（あとで戻せます）。
+          知っている単語をタップすると、その場で出題から外れて次の単語が補充されます。
         </p>
+        <Link
+          href="/words/skipped"
+          className="mt-3 inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm active:scale-95 transition-transform"
+        >
+          🗂 スキップした単語（{known.length}）→
+        </Link>
       </header>
 
       <WordsSkipClient words={words} />
