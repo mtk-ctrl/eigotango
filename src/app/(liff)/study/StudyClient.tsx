@@ -65,7 +65,10 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
     try {
       await setWordsKnown([current.wordId], true, studentId)
     } catch {
-      // 失敗しても学習は継続（次の語へ進む）
+      // 失敗時は誤って「設定済み」と思わせないよう通知し、再試行できるよう中断
+      alert('設定に失敗しました。通信環境を確認してもう一度お試しください。')
+      setMarking(false)
+      return
     }
     await handleNext()
   }, [current, marking, studentId, handleNext])

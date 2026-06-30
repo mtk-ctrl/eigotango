@@ -245,6 +245,21 @@ export async function getKnownWords(studentId?: string): Promise<UpcomingWord[]>
   return sorted.map(w => ({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: true }))
 }
 
+// スキップ済み語の件数だけを DB 側で数える（一覧の全データ取得を避けるための軽量版）。
+export async function getKnownWordsCount(studentId?: string): Promise<number> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return 0
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const { count } = await admin
+    .from('user_word_progress')
+    .select('word_id', { count: 'exact', head: true })
+    .eq('student_id', sid)
+    .eq('known', true)
+  return count ?? 0
+}
+
 // 語を「理解済み（スキップ）」にする/戻す。
 export async function setWordsKnown(wordIds: string[], known: boolean, studentId?: string): Promise<void> {
   const sid = studentId ?? (await currentUserId())
