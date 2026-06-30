@@ -188,9 +188,11 @@ export interface UpcomingWord {
   known: boolean
 }
 
-// 今後学ぶ予定の語を limit 件、カリキュラム順で返す（理解済みスキップのチェック用）。
-// 既に学習中/学習済み（known=false の進捗あり）は除外し、未学習 or 理解済みの語だけを並べる。
-export async function getUpcomingWords(limit = 100, studentId?: string): Promise<UpcomingWord[]> {
+type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null; sort_order: number | null }
+
+// 今後学ぶ予定の語を limit 件、カリキュラム順で返す（理解済みスキップの選択用）。
+// まだ進捗の無い「新規」のみを返す（学習中・学習済み・スキップ済みは除外）。
+export async function getUpcomingWords(limit = 120, studentId?: string): Promise<UpcomingWord[]> {
   const sid = studentId ?? (await currentUserId())
   if (!sid) return []
   await authorizeStudent(sid)
@@ -200,30 +202,47 @@ export async function getUpcomingWords(limit = 100, studentId?: string): Promise
 
   const { data: progressRows } = await admin
     .from('user_word_progress')
-    .select('word_id, known')
+    .select('word_id')
     .eq('student_id', sid)
-  const knownIds = new Set<string>()
-  const studyingIds = new Set<string>()
-  for (const r of progressRows ?? []) {
-    if (r.known) knownIds.add(r.word_id as string)
-    else studyingIds.add(r.word_id as string)
-  }
+  const usedIds = new Set((progressRows ?? []).map(r => r.word_id as string))
 
   let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order')
     .order('sort_order', { ascending: true, nullsFirst: false }).order('grade', { ascending: true })
   if (!premium) wq = wq.eq('tier', 'free')
   const { data: allWords } = await wq
 
-  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null; sort_order: number | null }
   const sorted = ((allWords ?? []) as WRow[]).slice().sort(curriculumCompare)
 
   const out: UpcomingWord[] = []
   for (const w of sorted) {
-    if (studyingIds.has(w.id)) continue            // 学習中/学習済みは一覧に出さない
-    out.push({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: knownIds.has(w.id) })
+    if (usedIds.has(w.id)) continue
+    out.push({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: false })
     if (out.length >= limit) break
   }
   return out
+}
+
+// スキップ済み（known=true）の語の一覧（戻す画面用・カリキュラム順）。
+export async function getKnownWords(studentId?: string): Promise<UpcomingWord[]> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return []
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const { data: progressRows } = await admin
+    .from('user_word_progress')
+    .select('word_id')
+    .eq('student_id', sid)
+    .eq('known', true)
+  const ids = (progressRows ?? []).map(r => r.word_id as string)
+  if (ids.length === 0) return []
+
+  const { data: words } = await admin
+    .from('words')
+    .select('id, word, meaning, grade, level, sort_order')
+    .in('id', ids)
+  const sorted = ((words ?? []) as WRow[]).slice().sort(curriculumCompare)
+  return sorted.map(w => ({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: true }))
 }
 
 // 語を「理解済み（スキップ）」にする/戻す。
