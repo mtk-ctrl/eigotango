@@ -13,6 +13,7 @@ import {
   FREE_DAILY_MAX as FREE_MAX,
   PREMIUM_DAILY_MAX as PREMIUM_MAX,
   DEFAULT_DAILY_GOAL,
+  DEFAULT_NEW_PER_DAY,
 } from '@/lib/constants'
 import type { Word, UserWordProgress } from '@/types/database'
 import type { TodayStudyResult, StudyQuestion } from '@/types/api'
@@ -66,8 +67,8 @@ export async function getStudentDailyMax(studentId: string): Promise<number> {
   return sub?.plan === 'premium' ? PREMIUM_MAX : FREE_MAX
 }
 
-// student の1日の出題語数（daily_goal をプラン上限でクランプ）
-async function getDailyGoal(studentId: string): Promise<number> {
+// student の1日の復習(アクティブリコール)上限（daily_goal をプラン上限でクランプ）
+async function getReviewLimit(studentId: string): Promise<number> {
   const admin = createAdminClient()
   const { data: profile } = await admin
     .from('profiles')
@@ -79,19 +80,34 @@ async function getDailyGoal(studentId: string): Promise<number> {
   return Math.min(Math.max(profile?.daily_goal ?? DEFAULT_DAILY_GOAL, 1), max)
 }
 
+// student の1日に新しく学ぶ語数（new_per_day をプラン上限でクランプ。0=新規なし）
+async function getNewPerDay(studentId: string): Promise<number> {
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('new_per_day')
+    .eq('id', studentId)
+    .single()
+
+  const max = await getStudentDailyMax(studentId)
+  return Math.min(Math.max(profile?.new_per_day ?? DEFAULT_NEW_PER_DAY, 0), max)
+}
+
 // 復習リマインド用のステータス（解き忘れ＝期限切れの可視化）。
 // due       : 今日までに復習すべき語数（next_review_date <= 今日）
 // overdue   : 期限切れ＝過去に解き忘れた語数（next_review_date < 今日）
 // newRemaining: まだ一度も学習していない語数（新規で挑戦できる残り）
-// dailyGoal : 1日の出題語数（追いつくのに何日かかるか表示用）
+// reviewLimit : 1日の復習(アクティブリコール)上限
+// newPerDay   : 1日に新しく学ぶ語数
 export async function getReviewStatus(studentId?: string): Promise<{
   due: number
   overdue: number
   newRemaining: number
-  dailyGoal: number
+  reviewLimit: number
+  newPerDay: number
 }> {
   const sid = studentId ?? (await currentUserId())
-  if (!sid) return { due: 0, overdue: 0, newRemaining: 0, dailyGoal: 10 }
+  if (!sid) return { due: 0, overdue: 0, newRemaining: 0, reviewLimit: DEFAULT_DAILY_GOAL, newPerDay: DEFAULT_NEW_PER_DAY }
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
@@ -118,8 +134,8 @@ export async function getReviewStatus(studentId?: string): Promise<{
   const { count } = await countQuery
   const newRemaining = Math.max((count ?? 0) - learned, 0)
 
-  const dailyGoal = await getDailyGoal(sid)
-  return { due, overdue, newRemaining, dailyGoal }
+  const [reviewLimit, newPerDay] = await Promise.all([getReviewLimit(sid), getNewPerDay(sid)])
+  return { due, overdue, newRemaining, reviewLimit, newPerDay }
 }
 
 export interface DailyWord { id: string; word: string; meaning: string }
@@ -141,19 +157,20 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
-  const goal = await getDailyGoal(sid)
+  const newPerDay = await getNewPerDay(sid)
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
   const toDW = (w: { id: string; word: string; meaning: string }): DailyWord =>
     ({ id: w.id, word: w.word, meaning: w.meaning })
 
-  // 今日・明日 = 未学習の先頭から goal 語ずつ（DB 側でアンチジョイン＋カリキュラム順）
+  // 今日・明日 = 未学習の先頭から「新規語数」ずつ（DB 側でアンチジョイン＋カリキュラム順）
+  const n = Math.max(newPerDay, 1)  // 0設定でも一覧は最低1件は見せる
   const { data: upcomingRows, error: upErr } = await admin.rpc('get_unstudied_words', {
-    p_student_id: sid, p_premium: premium, p_limit: goal * 2,
+    p_student_id: sid, p_premium: premium, p_limit: n * 2,
   })
   if (upErr) throw new Error(`failed to load daily words: ${upErr.message}`)
   const upcoming = (upcomingRows ?? []) as { id: string; word: string; meaning: string }[]
-  const today = upcoming.slice(0, goal).map(toDW)
-  const tomorrow = upcoming.slice(goal, goal * 2).map(toDW)
+  const today = upcoming.slice(0, n).map(toDW)
+  const tomorrow = upcoming.slice(n, n * 2).map(toDW)
 
   // 昨日 = 「前日(JST)に初めて学習した」語（理解済みスキップは除く）。日付で厳密に区切る。
   const { data: yRows } = await admin
@@ -356,50 +373,54 @@ function curriculumCompare(
   return a.word.localeCompare(b.word)
 }
 
-// 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
+export type StudyMode = 'new' | 'review'
+
+// 学習問題を取得。mode='new' は新規語のみ、mode='review' は復習(アクティブリコール)のみ。
+// 新規と復習は画面・上限を分離している（new_per_day / daily_goal）。
 // studentId 省略時はログイン中の本人。指定時は親が子の代わりに取得（要認可）。
-export async function getTodayStudyWords(studentId?: string): Promise<TodayStudyResult> {
+export async function getStudyWords(studentId: string | undefined, mode: StudyMode): Promise<TodayStudyResult> {
   const sid = studentId ?? (await currentUserId())
   if (!sid) return { sessionId: '', questions: [] }
   await authorizeStudent(sid)
 
   const admin = createAdminClient()
   const today = jstDate()
-  const limit = await getDailyGoal(sid)
   // 無料は基本100語（tier=free）のみ、プレミアムは全語
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
-  // 1. 復習単語（next_review_date が今日以前）
-  const { data: progressRows } = await admin
-    .from('user_word_progress')
-    .select('*, word:words(*)')
-    .eq('student_id', sid)
-    .eq('known', false)
-    .lte('next_review_date', today)
-    .order('next_review_date')
-    .limit(limit)
+  const items: { word: Word; progress: UserWordProgress | null }[] = []
 
-  // 無料ユーザーは念のため premium 語を除外（過去にプレミアムだった場合の保険）
-  const reviewItems = (progressRows ?? []).filter(r => {
-    const w = r.word as Word | null
-    return w && (premium || w.tier === 'free')
-  })
-  const remaining = limit - reviewItems.length
-
-  // 2. 新規単語（まだ学習していない）。DB 側でアンチジョイン＋カリキュラム順＋件数制限。
-  const newWordItems: { word: Word; progress: null }[] = []
-  if (remaining > 0) {
-    const { data: newWords, error: newErr } = await admin.rpc('get_unstudied_words', {
-      p_student_id: sid, p_premium: premium, p_limit: remaining,
+  if (mode === 'review') {
+    // 復習単語（next_review_date が今日以前）を上限まで
+    const limit = await getReviewLimit(sid)
+    const { data: progressRows } = await admin
+      .from('user_word_progress')
+      .select('*, word:words(*)')
+      .eq('student_id', sid)
+      .eq('known', false)
+      .lte('next_review_date', today)
+      .order('next_review_date')
+      .limit(limit)
+    // 無料ユーザーは念のため premium 語を除外（過去にプレミアムだった場合の保険）
+    const reviewItems = (progressRows ?? []).filter(r => {
+      const w = r.word as Word | null
+      return w && (premium || w.tier === 'free')
     })
-    if (newErr) throw new Error(`failed to load new words: ${newErr.message}`)
-    newWordItems.push(...((newWords ?? []) as Word[]).map(w => ({ word: w, progress: null as null })))
+    items.push(...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })))
+  } else {
+    // 新規単語（まだ学習していない）。DB 側でアンチジョイン＋カリキュラム順＋件数制限。
+    const limit = await getNewPerDay(sid)
+    if (limit > 0) {
+      const { data: newWords, error: newErr } = await admin.rpc('get_unstudied_words', {
+        p_student_id: sid, p_premium: premium, p_limit: limit,
+      })
+      if (newErr) throw new Error(`failed to load new words: ${newErr.message}`)
+      items.push(...((newWords ?? []) as Word[]).map(w => ({ word: w, progress: null })))
+    }
   }
 
-  const items: { word: Word; progress: UserWordProgress | null }[] = [
-    ...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })),
-    ...newWordItems,
-  ]
+  // 出題なし（新規を学び切った / 復習が0件）ならセッションを作らず空で返す
+  if (items.length === 0) return { sessionId: '', questions: [] }
 
   // 3. 誤答候補プール（同 tier 範囲の語・word と meaning のペア）
   let poolQuery = admin.from('words').select('word, meaning').limit(200)
@@ -513,22 +534,37 @@ export async function recordAnswer({
   revalidatePath('/home')
 }
 
-// セッション完了を記録 + 親へ通知（LINE / メール / 両方）
-export async function completeSession(
-  studentId: string,
-  sessionId: string,
-  correctCount: number,
-  totalCount: number,
-) {
+// セッション完了を記録 + 親へ通知（LINE / メール / 両方）。
+// 新規/復習の2画面が同じ日次セッションを共有するため、集計は session_answers から
+// 取り直す（どちらの画面の回答も合算される）。親通知は1日1回だけ（parent_notified_at で制御）。
+export async function completeSession(studentId: string, sessionId: string) {
   const actingUserId = await authorizeStudent(studentId)
   const admin = createAdminClient()
   const now = new Date().toISOString()
+
+  if (!sessionId) return
+
+  // その日の全回答から集計し直す
+  const { data: answers } = await admin
+    .from('session_answers')
+    .select('quality')
+    .eq('session_id', sessionId)
+  const totalCount = (answers ?? []).length
+  const correctCount = (answers ?? []).filter(a => (a.quality as number) >= 3).length
 
   await admin.from('study_sessions').update({
     total_words: totalCount,
     correct_words: correctCount,
     completed_at: now,
   }).eq('id', sessionId)
+
+  // 既に親へ通知済みなら二重送信しない（新規→復習の2回完了でも通知は1回）
+  const { data: sessionRow } = await admin
+    .from('study_sessions')
+    .select('parent_notified_at')
+    .eq('id', sessionId)
+    .maybeSingle()
+  if (sessionRow?.parent_notified_at) return
 
   // 親への通知（失敗してもセッション完了は確定させる）
   try {

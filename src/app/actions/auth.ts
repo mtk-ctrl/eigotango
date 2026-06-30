@@ -45,6 +45,26 @@ export async function setMyDailyGoal(goal: number) {
   await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
 }
 
+// 本人の1日の新規語数を設定（親がロックしている場合は変更不可 = 親優先）。0=新規なし
+export async function setMyNewPerDay(n: number) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('daily_goal_locked')
+    .eq('id', user.id)
+    .single()
+  if (profile?.daily_goal_locked) {
+    throw new Error('保護者が設定しているため変更できません')
+  }
+
+  const clamped = Math.min(Math.max(Math.round(n), 0), 100)
+  await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
+}
+
 // 通知方法を変更（オフ / メール / LINE / 両方）
 export async function setNotificationChannel(channel: 'none' | 'line' | 'email' | 'both') {
   const supabase = await createClient()

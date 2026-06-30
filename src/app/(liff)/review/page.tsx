@@ -2,9 +2,10 @@ import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudyWords } from '@/app/actions/study'
 import { displayNameOf } from '@/lib/profile'
-import { StudyClient } from './StudyClient'
+import { StudyClient } from '../study/StudyClient'
 
-export default async function StudyPage({
+// アクティブリコール（復習）専用の出題画面。新規語は出さず、期限の来た復習のみ。
+export default async function ReviewPage({
   searchParams,
 }: {
   searchParams: Promise<{ child?: string }>
@@ -16,14 +17,13 @@ export default async function StudyPage({
 
   let studentId = user.id
   let studentName: string | undefined
-  let returnTo = '/home'
+  const returnTo = '/home'
   let recordsHref = '/progress'
   let showLogout = true
 
-  // 親が子の代わりに学習（?child=...）
+  // 親が子の代わりに復習（?child=...）
   if (child && child !== user.id) {
     studentId = child
-    returnTo = '/home'
     recordsHref = `/progress?child=${child}`
     showLogout = false
     const admin = createAdminClient()
@@ -35,11 +35,10 @@ export default async function StudyPage({
     studentName = displayNameOf(cp) || undefined
   }
 
-  // 認可は getStudyWords 内（authorizeStudent）で行う。失敗時は戻す。
   let sessionId = ''
   let questions: Awaited<ReturnType<typeof getStudyWords>>['questions'] = []
   try {
-    const res = await getStudyWords(studentId, 'new')
+    const res = await getStudyWords(studentId, 'review')
     sessionId = res.sessionId
     questions = res.questions
   } catch {
@@ -55,6 +54,7 @@ export default async function StudyPage({
       returnTo={returnTo}
       recordsHref={recordsHref}
       showLogout={showLogout}
+      mode="review"
     />
   )
 }
