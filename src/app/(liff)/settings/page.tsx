@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
@@ -40,6 +41,18 @@ export default async function SettingsPage() {
       <div className="px-5 mt-4 flex flex-col gap-4">
         {/* こども管理（親のみ）: 追加・編集・連携・削除 */}
         {isParent && <ChildrenManager children={children} premium={premium} />}
+
+        {/* 知っている単語をスキップ */}
+        <Link
+          href="/words"
+          className="flex items-center justify-between rounded-2xl bg-white p-5 shadow-sm active:scale-[0.99] transition-transform"
+        >
+          <div>
+            <h2 className="text-sm font-bold text-gray-700">✅ 知っている単語をスキップ</h2>
+            <p className="mt-0.5 text-xs text-gray-400">理解済みの語を毎日の出題から外す</p>
+          </div>
+          <span className="text-gray-300">›</span>
+        </Link>
 
         {/* 1日の問題数（4問含む・親がロック中は読み取り専用） */}
         <SelfGoalSetting
