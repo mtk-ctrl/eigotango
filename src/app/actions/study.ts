@@ -303,11 +303,14 @@ export async function markDailyLearned(wordIds: string[], studentId?: string): P
   const admin = createAdminClient()
 
   // 既存進捗のある語は対象外（クイズ履歴・スキップ等を壊さない）
-  const { data: existing } = await admin
+  // ここでエラーを握りつぶすと existing=null → 全語を新規扱いで insert し、
+  // 一意制約(student_id, word_id)違反でクラッシュするため必ず surface する。
+  const { data: existing, error: existingErr } = await admin
     .from('user_word_progress')
     .select('word_id')
     .eq('student_id', sid)
     .in('word_id', wordIds)
+  if (existingErr) throw new Error(`failed to check existing progress: ${existingErr.message}`)
   const existingIds = new Set((existing ?? []).map(r => r.word_id as string))
   const toInsert = wordIds.filter(id => !existingIds.has(id))
   if (toInsert.length === 0) return
@@ -320,7 +323,10 @@ export async function markDailyLearned(wordIds: string[], studentId?: string): P
     next_review_date: jstDate(1), total_reviews: 0, correct_count: 0,
     first_learned_at: now, last_reviewed_at: now,
   }))
-  const { error } = await admin.from('user_word_progress').insert(rows)
+  // upsert + ignoreDuplicates: チェックと insert の間に競合で行ができても一意制約で落ちない
+  const { error } = await admin
+    .from('user_word_progress')
+    .upsert(rows, { onConflict: 'student_id,word_id', ignoreDuplicates: true })
   if (error) throw new Error(`failed to mark learned: ${error.message}`)
 
   revalidatePath('/home')

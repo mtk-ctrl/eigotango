@@ -12,6 +12,18 @@ const DAYS = [
 
 type DayKey = (typeof DAYS)[number]['key']
 
+// タブごとに「何が表示されているか」を明示（文言と内容を一致させる）
+const DESC: Record<DayKey, string> = {
+  yesterday: '昨日はじめて学習した単語です（いまは復習に回っています）。',
+  today: 'これから学ぶ単語です。覚えたら「学習した」で復習に回せます。',
+  tomorrow: '明日学ぶ予定の単語です。先に覚えてもOKです。',
+}
+const EMPTY: Record<DayKey, string> = {
+  yesterday: '昨日はじめて学習した単語はありません。',
+  today: 'これから学ぶ新しい単語はありません。',
+  tomorrow: '明日学ぶ予定の単語はありません。',
+}
+
 // ホームに昨日/今日/明日の単語を表示し、まとめてコピー＋「学習した」で復習に回せる。
 export function DailyWords({ data, studentId }: { data: DailyWordsData; studentId?: string }) {
   const router = useRouter()
@@ -58,13 +70,10 @@ export function DailyWords({ data, studentId }: { data: DailyWordsData; studentI
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-sm font-bold text-gray-700">単語リスト</h2>
-      <p className="mb-3 text-xs text-gray-400">
-        コピーして覚えたら「学習した」で復習（毎日の出題）に回せます。
-      </p>
+      <h2 className="mb-3 text-sm font-bold text-gray-700">単語リスト</h2>
 
       {/* 昨日 / 今日 / 明日 */}
-      <div className="mb-3 flex gap-2">
+      <div className="mb-2 flex gap-2">
         {DAYS.map(d => (
           <button
             key={d.key}
@@ -81,8 +90,11 @@ export function DailyWords({ data, studentId }: { data: DailyWordsData; studentI
         ))}
       </div>
 
+      {/* タブの内容説明（文言と表示を一致させる） */}
+      <p className="mb-3 text-xs text-gray-400">{DESC[tab]}</p>
+
       {words.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">単語はありません</p>
+        <p className="py-6 text-center text-sm text-gray-400">{EMPTY[tab]}</p>
       ) : (
         <>
           <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
