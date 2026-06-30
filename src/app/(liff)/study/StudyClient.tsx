@@ -42,7 +42,12 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
     setLastResult({ type, input })
     setQualities(prev => [...prev, quality])
     setPhase('result')
-    await recordAnswer({ studentId, sessionId, wordId: current.wordId, quality })
+    try {
+      await recordAnswer({ studentId, sessionId, wordId: current.wordId, quality })
+    } catch {
+      // 結果表示は維持しつつ、記録漏れの可能性をユーザーに知らせる
+      alert('回答の保存に失敗しました。通信環境を確認してください。この単語は記録されていない可能性があります。')
+    }
   }, [current, sessionId, studentId])
 
   const handleNext = useCallback(async () => {
