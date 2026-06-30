@@ -370,23 +370,24 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
       .select('word_id')
       .eq('student_id', sid)
 
-    const studiedIds = allProgress?.map(r => r.word_id) ?? []
-    // カリキュラム順で候補を多めに取得（基礎テーマ→学年）。
+    const studiedIds = new Set((allProgress ?? []).map(r => r.word_id as string))
+    // 全候補をカリキュラム順で取得し、学習済みはメモリ上で除外する。
+    // 学習履歴が膨大でも NOT IN(...) でクエリ文字列が肥大化／URL 上限超過しないようにするため。
     let query = admin
       .from('words')
       .select('*')
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('grade', { ascending: true })
-      .limit(Math.max(remaining * 5, 200))
     if (!premium) query = query.eq('tier', 'free')
-    if (studiedIds.length > 0) {
-      query = query.not('id', 'in', `(${studiedIds.join(',')})`)
-    }
     const { data: newWords } = await query
 
-    // カリキュラム順（基礎テーマ→学年→難易度→アルファベット）に整える
+    // カリキュラム順（基礎テーマ→学年→難易度→アルファベット）に整え、未学習だけ先頭から採用
     const sorted = (newWords ?? []).slice().sort((a, b) => curriculumCompare(a as Word, b as Word))
-    newWordItems.push(...sorted.slice(0, remaining).map(w => ({ word: w as Word, progress: null })))
+    for (const w of sorted) {
+      if (studiedIds.has(w.id as string)) continue
+      newWordItems.push({ word: w as Word, progress: null })
+      if (newWordItems.length >= remaining) break
+    }
   }
 
   const items: { word: Word; progress: UserWordProgress | null }[] = [
@@ -418,12 +419,26 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
   if (existingSession) {
     sessionId = existingSession.id
   } else {
-    const { data: newSession } = await admin
+    const { data: newSession, error: sessionError } = await admin
       .from('study_sessions')
       .insert({ student_id: sid, session_date: today })
       .select('id')
       .single()
-    sessionId = newSession?.id ?? ''
+    if (newSession) {
+      sessionId = newSession.id
+    } else {
+      // 同時アクセスで既に作成済み（unique 制約）の可能性 → 取り直す
+      const { data: retry } = await admin
+        .from('study_sessions')
+        .select('id')
+        .eq('student_id', sid)
+        .eq('session_date', today)
+        .maybeSingle()
+      if (!retry) {
+        throw new Error(`failed to create study session: ${sessionError?.message ?? 'unknown error'}`)
+      }
+      sessionId = retry.id
+    }
   }
 
   return { sessionId, questions }
@@ -460,7 +475,7 @@ export async function recordAnswer({
 
   const now = new Date().toISOString()
 
-  await Promise.all([
+  const [progressResult, answerResult] = await Promise.all([
     admin.from('user_word_progress').upsert({
       student_id: studentId,
       word_id: wordId,
@@ -477,6 +492,15 @@ export async function recordAnswer({
 
     admin.from('session_answers').insert({ session_id: sessionId, word_id: wordId, quality }),
   ])
+
+  // 進捗（SM-2）の保存失敗は再出題に直結するので必ず surface する。
+  // session_answers は集計用の付随記録なのでログのみ（学習継続を優先）。
+  if (progressResult.error) {
+    throw new Error(`failed to save progress: ${progressResult.error.message}`)
+  }
+  if (answerResult.error) {
+    console.error('[recordAnswer] failed to save session answer:', answerResult.error)
+  }
 
   // 出題された語は進捗が付くので「スキップ候補」一覧から自動的に外れる
   revalidatePath('/words')
