@@ -5,3 +5,9 @@ export function jstDate(offsetDays = 0): string {
   const ms = Date.now() + 9 * 60 * 60 * 1000 + offsetDays * 24 * 60 * 60 * 1000
   return new Date(ms).toISOString().split('T')[0]
 }
+
+// JST のある日の 0:00（=日付の境界）を UTC ISO で返す。
+// timestamptz 列（first_learned_at 等）を「JST の何日に属するか」で範囲比較するのに使う。
+export function jstDayStartUtc(offsetDays = 0): string {
+  return new Date(`${jstDate(offsetDays)}T00:00:00+09:00`).toISOString()
+}
