@@ -462,6 +462,10 @@ export async function recordAnswer({
 
     admin.from('session_answers').insert({ session_id: sessionId, word_id: wordId, quality }),
   ])
+
+  // 出題された語は進捗が付くので「スキップ候補」一覧から自動的に外れる
+  revalidatePath('/words')
+  revalidatePath('/home')
 }
 
 // セッション完了を記録 + 親へ通知（LINE / メール / 両方）

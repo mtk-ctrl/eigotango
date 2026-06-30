@@ -6,6 +6,8 @@ interface Props {
   result: SpellingResult
   onNext: () => void
   isLast: boolean
+  onMarkKnown?: () => void   // 正解時のみ。「もう覚えてる」で今後の出題対象から外す
+  marking?: boolean
 }
 
 const CONFIG = {
@@ -14,7 +16,7 @@ const CONFIG = {
   wrong:   { bg: 'bg-red-50', border: 'border-red-200', label: '不正解', emoji: '❌' },
 }
 
-export function ResultCard({ question, result, onNext, isLast }: Props) {
+export function ResultCard({ question, result, onNext, isLast, onMarkKnown, marking }: Props) {
   const c = CONFIG[result.type]
   const { word, mode } = question
 
@@ -70,6 +72,17 @@ export function ResultCard({ question, result, onNext, isLast }: Props) {
       >
         {isLast ? '完了！' : '次へ →'}
       </button>
+
+      {/* 正解した語は「もう覚えてる」で今後アクティブリコールの対象から外せる */}
+      {result.type === 'correct' && onMarkKnown && (
+        <button
+          onClick={onMarkKnown}
+          disabled={marking}
+          className="w-full py-3 bg-white text-gray-600 rounded-xl text-sm font-bold border-2 border-gray-200 active:scale-95 transition-transform disabled:opacity-50"
+        >
+          {marking ? '設定中…' : '✓ もうこの単語は覚えてる（今後出題しない）'}
+        </button>
+      )}
     </div>
   )
 }

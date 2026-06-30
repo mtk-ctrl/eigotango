@@ -9,7 +9,7 @@ import { SpellingInput } from '@/components/study/SpellingInput'
 import { ChoiceInput } from '@/components/study/ChoiceInput'
 import { ResultCard } from '@/components/study/ResultCard'
 import { checkAnswer } from '@/lib/questions'
-import { recordAnswer, completeSession } from '@/app/actions/study'
+import { recordAnswer, completeSession, setWordsKnown } from '@/app/actions/study'
 import { LogoutButton } from '@/components/LogoutButton'
 import type { StudyQuestion, SpellingResult } from '@/types/api'
 
@@ -31,6 +31,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
   const [phase, setPhase] = useState<Phase>('input')
   const [lastResult, setLastResult] = useState<SpellingResult | null>(null)
   const [qualities, setQualities] = useState<number[]>([])
+  const [marking, setMarking] = useState(false)
 
   const current = questions[index]
   const isLast = index + 1 >= questions.length
@@ -53,8 +54,21 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
       setIndex(i => i + 1)
       setPhase('input')
       setLastResult(null)
+      setMarking(false)
     }
   }, [isLast, sessionId, studentId, qualities, questions.length])
+
+  // 正解した語を「もう覚えてる」にして今後の出題対象から外し、次へ進む
+  const handleMarkKnown = useCallback(async () => {
+    if (!current || marking) return
+    setMarking(true)
+    try {
+      await setWordsKnown([current.wordId], true, studentId)
+    } catch {
+      // 失敗しても学習は継続（次の語へ進む）
+    }
+    await handleNext()
+  }, [current, marking, studentId, handleNext])
 
   const handleQuit = useCallback(() => {
     if (index === 0 && phase === 'input') {
@@ -152,6 +166,8 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
           result={lastResult}
           onNext={handleNext}
           isLast={isLast}
+          onMarkKnown={handleMarkKnown}
+          marking={marking}
         />
       )}
     </div>
