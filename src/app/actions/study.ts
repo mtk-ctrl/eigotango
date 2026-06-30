@@ -143,13 +143,16 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const goal = await getDailyGoal(sid)
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
-  // 学習済み（word_id と初回学習日時）
+  // 学習済み/スキップ済み（word_id・初回学習日時・known）
   const { data: progressRows } = await admin
     .from('user_word_progress')
-    .select('word_id, first_learned_at')
+    .select('word_id, first_learned_at, known')
     .eq('student_id', sid)
-  const learned = (progressRows ?? []) as { word_id: string; first_learned_at: string | null }[]
-  const learnedIds = new Set(learned.map(r => r.word_id))
+  const allProgress = (progressRows ?? []) as { word_id: string; first_learned_at: string | null; known: boolean }[]
+  // 今日/明日の候補から除外するのは全進捗（理解済みスキップ含む）
+  const learnedIds = new Set(allProgress.map(r => r.word_id))
+  // 昨日（直近に学んだ語）は理解済みスキップを除く
+  const learned = allProgress.filter(r => !r.known)
 
   // 利用可能な語（tier 範囲）を取得し、カリキュラム順（基礎テーマ→学年→難易度）に並べる
   let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order').order('grade', { ascending: true })
@@ -174,6 +177,97 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
     .map(r => toDW(wordById.get(r.word_id)!))
 
   return { yesterday, today, tomorrow }
+}
+
+export interface UpcomingWord {
+  id: string
+  word: string
+  meaning: string
+  grade: string | null
+  known: boolean
+}
+
+// 今後学ぶ予定の語を limit 件、カリキュラム順で返す（理解済みスキップのチェック用）。
+// 既に学習中/学習済み（known=false の進捗あり）は除外し、未学習 or 理解済みの語だけを並べる。
+export async function getUpcomingWords(limit = 100, studentId?: string): Promise<UpcomingWord[]> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return []
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const premium = (await getStudentDailyMax(sid)) > FREE_MAX
+
+  const { data: progressRows } = await admin
+    .from('user_word_progress')
+    .select('word_id, known')
+    .eq('student_id', sid)
+  const knownIds = new Set<string>()
+  const studyingIds = new Set<string>()
+  for (const r of progressRows ?? []) {
+    if (r.known) knownIds.add(r.word_id as string)
+    else studyingIds.add(r.word_id as string)
+  }
+
+  let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order')
+    .order('sort_order', { ascending: true, nullsFirst: false }).order('grade', { ascending: true })
+  if (!premium) wq = wq.eq('tier', 'free')
+  const { data: allWords } = await wq
+
+  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null; sort_order: number | null }
+  const sorted = ((allWords ?? []) as WRow[]).slice().sort(curriculumCompare)
+
+  const out: UpcomingWord[] = []
+  for (const w of sorted) {
+    if (studyingIds.has(w.id)) continue            // 学習中/学習済みは一覧に出さない
+    out.push({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: knownIds.has(w.id) })
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+// 語を「理解済み（スキップ）」にする/戻す。
+export async function setWordsKnown(wordIds: string[], known: boolean, studentId?: string): Promise<void> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) throw new Error('Unauthorized')
+  await authorizeStudent(sid)
+  if (wordIds.length === 0) return
+
+  const admin = createAdminClient()
+
+  if (known) {
+    // 既存進捗は known=true＆復習を遠い未来へ（履歴は保持）。未学習語は known マーカーを新規作成。
+    const { data: existing } = await admin
+      .from('user_word_progress')
+      .select('word_id')
+      .eq('student_id', sid)
+      .in('word_id', wordIds)
+    const existingIds = new Set((existing ?? []).map(r => r.word_id as string))
+    const far = jstDate(3650)
+
+    const toInsert = wordIds.filter(id => !existingIds.has(id)).map(id => ({
+      student_id: sid, word_id: id, known: true,
+      easiness_factor: 2.5, interval_days: 1, repetitions: 0,
+      next_review_date: far, total_reviews: 0, correct_count: 0,
+      first_learned_at: new Date().toISOString(),
+    }))
+    if (toInsert.length > 0) {
+      await admin.from('user_word_progress').insert(toInsert)
+    }
+    if (existingIds.size > 0) {
+      await admin.from('user_word_progress')
+        .update({ known: true, next_review_date: far })
+        .eq('student_id', sid)
+        .in('word_id', [...existingIds])
+    }
+  } else {
+    // 戻す: 学習履歴の無い known マーカーは削除（新規プールに戻す）、履歴ありは known=false で再開
+    await admin.from('user_word_progress')
+      .delete()
+      .eq('student_id', sid).in('word_id', wordIds).eq('known', true).eq('total_reviews', 0)
+    await admin.from('user_word_progress')
+      .update({ known: false, next_review_date: jstDate() })
+      .eq('student_id', sid).in('word_id', wordIds).eq('known', true).gt('total_reviews', 0)
+  }
 }
 
 const GRADE_RANK: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
@@ -215,6 +309,7 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     .from('user_word_progress')
     .select('*, word:words(*)')
     .eq('student_id', sid)
+    .eq('known', false)
     .lte('next_review_date', today)
     .order('next_review_date')
     .limit(limit)

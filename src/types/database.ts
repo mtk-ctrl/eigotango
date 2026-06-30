@@ -76,6 +76,7 @@ export interface UserWordProgress {
   total_reviews: number
   correct_count: number
   last_quality: number | null  // 最後の回答品質 (0-5)
+  known: boolean               // 理解済み（スキップ対象・新規/復習に出さない）
   first_learned_at: string | null
   last_reviewed_at: string | null
   created_at: string
