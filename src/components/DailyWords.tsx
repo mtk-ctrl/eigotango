@@ -90,13 +90,12 @@ export function DailyWords({ data, studentId }: { data: DailyWordsData; studentI
         ))}
       </div>
 
-      {/* タブの内容説明（文言と表示を一致させる） */}
-      <p className="mb-3 text-xs text-gray-400">{DESC[tab]}</p>
-
       {words.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-400">{EMPTY[tab]}</p>
       ) : (
         <>
+          {/* タブの内容説明（文言と表示を一致させる。空のときは出さない） */}
+          <p className="mb-3 text-xs text-gray-400">{DESC[tab]}</p>
           <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
             {words.map(w => (
               <div
