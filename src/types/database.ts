@@ -61,6 +61,7 @@ export interface Word {
   answers_en: string[] | null    // 受理する英語答え（複数可: many / a lot of）
   is_idiom: boolean              // 熟語かどうか
   tier: WordTier                 // free（基本100語）/ premium（高校受験）
+  sort_order: number | null      // カリキュラム順（基礎=テーマ別の小さい番号 / 受験語=null）
   created_at: string
 }
 
