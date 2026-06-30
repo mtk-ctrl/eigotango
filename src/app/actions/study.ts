@@ -1,5 +1,6 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
@@ -268,6 +269,12 @@ export async function setWordsKnown(wordIds: string[], known: boolean, studentId
       .update({ known: false, next_review_date: jstDate() })
       .eq('student_id', sid).in('word_id', wordIds).eq('known', true).gt('total_reviews', 0)
   }
+
+  // 出題・一覧に即時反映させるためキャッシュを再検証
+  revalidatePath('/home')
+  revalidatePath('/study')
+  revalidatePath('/progress')
+  revalidatePath('/words')
 }
 
 const GRADE_RANK: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
