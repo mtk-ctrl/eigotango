@@ -6,7 +6,7 @@ import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
 import { buildQuestion, pickMode } from '@/lib/questions'
-import { jstDate } from '@/lib/date'
+import { jstDate, jstDayStartUtc } from '@/lib/date'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
 import {
@@ -122,7 +122,7 @@ export async function getReviewStatus(studentId?: string): Promise<{
   return { due, overdue, newRemaining, dailyGoal }
 }
 
-export interface DailyWord { word: string; meaning: string }
+export interface DailyWord { id: string; word: string; meaning: string }
 export interface DailyWords {
   yesterday: DailyWord[]
   today: DailyWord[]
@@ -143,38 +143,31 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const admin = createAdminClient()
   const goal = await getDailyGoal(sid)
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
-  const toDW = (w: { word: string; meaning: string }): DailyWord => ({ word: w.word, meaning: w.meaning })
+  const toDW = (w: { id: string; word: string; meaning: string }): DailyWord =>
+    ({ id: w.id, word: w.word, meaning: w.meaning })
 
   // 今日・明日 = 未学習の先頭から goal 語ずつ（DB 側でアンチジョイン＋カリキュラム順）
   const { data: upcomingRows, error: upErr } = await admin.rpc('get_unstudied_words', {
     p_student_id: sid, p_premium: premium, p_limit: goal * 2,
   })
   if (upErr) throw new Error(`failed to load daily words: ${upErr.message}`)
-  const upcoming = (upcomingRows ?? []) as { word: string; meaning: string }[]
+  const upcoming = (upcomingRows ?? []) as { id: string; word: string; meaning: string }[]
   const today = upcoming.slice(0, goal).map(toDW)
   const tomorrow = upcoming.slice(goal, goal * 2).map(toDW)
 
-  // 昨日 = 直近に学んだ goal 語（理解済みスキップを除く）。対象だけを id 指定で取得。
-  const { data: recent } = await admin
+  // 昨日 = 「前日(JST)に初めて学習した」語（理解済みスキップは除く）。日付で厳密に区切る。
+  const { data: yRows } = await admin
     .from('user_word_progress')
-    .select('word_id')
+    .select('first_learned_at, words(id, word, meaning)')
     .eq('student_id', sid)
     .eq('known', false)
-    .order('first_learned_at', { ascending: false, nullsFirst: false })
-    .limit(goal)
-  const recentIds = (recent ?? []).map(r => r.word_id as string)
-  let yesterday: DailyWord[] = []
-  if (recentIds.length > 0) {
-    const { data: yWords } = await admin
-      .from('words')
-      .select('id, word, meaning')
-      .in('id', recentIds)
-    const byId = new Map((yWords ?? []).map(w => [w.id as string, w as { word: string; meaning: string }]))
-    yesterday = recentIds
-      .map(id => byId.get(id))
-      .filter((w): w is { word: string; meaning: string } => Boolean(w))
-      .map(toDW)
-  }
+    .gte('first_learned_at', jstDayStartUtc(-1))
+    .lt('first_learned_at', jstDayStartUtc(0))
+    .order('first_learned_at', { ascending: false })
+  const yesterday: DailyWord[] = (yRows ?? [])
+    .map(r => r.words as unknown as { id: string; word: string; meaning: string } | null)
+    .filter((w): w is { id: string; word: string; meaning: string } => Boolean(w))
+    .map(toDW)
 
   return { yesterday, today, tomorrow }
 }
@@ -292,6 +285,44 @@ export async function setWordsKnown(wordIds: string[], known: boolean, studentId
   }
 
   // 出題・一覧に即時反映させるためキャッシュを再検証
+  revalidatePath('/home')
+  revalidatePath('/study')
+  revalidatePath('/progress')
+  revalidatePath('/words')
+}
+
+// 「今日の単語」リストの語を初回学習済みにする（クイズを通さず手元で覚えた場合）。
+// 進捗行を作って翌日からアクティブリコール（復習）に回す。1日の設定数で頭打ちにせず、
+// 渡された語をすべて学習済みにする。既に進捗のある語はスキップ（再学習の上書きを避ける）。
+export async function markDailyLearned(wordIds: string[], studentId?: string): Promise<void> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) throw new Error('Unauthorized')
+  await authorizeStudent(sid)
+  if (wordIds.length === 0) return
+
+  const admin = createAdminClient()
+
+  // 既存進捗のある語は対象外（クイズ履歴・スキップ等を壊さない）
+  const { data: existing } = await admin
+    .from('user_word_progress')
+    .select('word_id')
+    .eq('student_id', sid)
+    .in('word_id', wordIds)
+  const existingIds = new Set((existing ?? []).map(r => r.word_id as string))
+  const toInsert = wordIds.filter(id => !existingIds.has(id))
+  if (toInsert.length === 0) return
+
+  const now = new Date().toISOString()
+  // 初回学習済み: repetitions=1・翌日復習。クイズ未回答なので reviews/correct は加算しない。
+  const rows = toInsert.map(id => ({
+    student_id: sid, word_id: id, known: false,
+    easiness_factor: 2.5, interval_days: 1, repetitions: 1,
+    next_review_date: jstDate(1), total_reviews: 0, correct_count: 0,
+    first_learned_at: now, last_reviewed_at: now,
+  }))
+  const { error } = await admin.from('user_word_progress').insert(rows)
+  if (error) throw new Error(`failed to mark learned: ${error.message}`)
+
   revalidatePath('/home')
   revalidatePath('/study')
   revalidatePath('/progress')
