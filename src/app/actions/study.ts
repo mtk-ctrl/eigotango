@@ -151,23 +151,13 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const learned = (progressRows ?? []) as { word_id: string; first_learned_at: string | null }[]
   const learnedIds = new Set(learned.map(r => r.word_id))
 
-  // 利用可能な語（tier 範囲）を取得し、易しい順に並べる
-  let wq = admin.from('words').select('id, word, meaning, grade, level').order('grade', { ascending: true })
+  // 利用可能な語（tier 範囲）を取得し、カリキュラム順（基礎テーマ→学年→難易度）に並べる
+  let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order').order('grade', { ascending: true })
   if (!premium) wq = wq.eq('tier', 'free')
   const { data: allWords } = await wq
 
-  const gradeRank: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
-  const levelRank: Record<string, number> = { '基礎': 1, '標準': 2, '難関': 3 }
-  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null }
-  const sorted = ((allWords ?? []) as WRow[]).slice().sort((a, b) => {
-    const ga = gradeRank[a.grade ?? ''] ?? 4
-    const gb = gradeRank[b.grade ?? ''] ?? 4
-    if (ga !== gb) return ga - gb
-    const la = levelRank[a.level ?? ''] ?? 2
-    const lb = levelRank[b.level ?? ''] ?? 2
-    if (la !== lb) return la - lb
-    return a.word.localeCompare(b.word)
-  })
+  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null; sort_order: number | null }
+  const sorted = ((allWords ?? []) as WRow[]).slice().sort(curriculumCompare)
   const wordById = new Map(sorted.map(w => [w.id, w]))
   const toDW = (w: WRow): DailyWord => ({ word: w.word, meaning: w.meaning })
 
@@ -184,6 +174,27 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
     .map(r => toDW(wordById.get(r.word_id)!))
 
   return { yesterday, today, tomorrow }
+}
+
+const GRADE_RANK: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
+const LEVEL_RANK: Record<string, number> = { '基礎': 1, '標準': 2, '難関': 3 }
+
+// カリキュラム順: 基礎テーマ(sort_order 昇順・null は後) → 学年 → 難易度 → アルファベット。
+// 子ども向けに、日常の易しい語をテーマ単位で先に、その後に受験語彙を並べる。
+function curriculumCompare(
+  a: { sort_order: number | null; grade: string | null; level: string | null; word: string },
+  b: { sort_order: number | null; grade: string | null; level: string | null; word: string },
+): number {
+  const sa = a.sort_order ?? Number.MAX_SAFE_INTEGER
+  const sb = b.sort_order ?? Number.MAX_SAFE_INTEGER
+  if (sa !== sb) return sa - sb
+  const ga = GRADE_RANK[a.grade ?? ''] ?? 4
+  const gb = GRADE_RANK[b.grade ?? ''] ?? 4
+  if (ga !== gb) return ga - gb
+  const la = LEVEL_RANK[a.level ?? ''] ?? 2
+  const lb = LEVEL_RANK[b.level ?? ''] ?? 2
+  if (la !== lb) return la - lb
+  return a.word.localeCompare(b.word)
 }
 
 // 今日の学習問題を取得（復習 + 新規）。モード別に出題を組み立てる。
@@ -224,10 +235,11 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
       .eq('student_id', sid)
 
     const studiedIds = allProgress?.map(r => r.word_id) ?? []
-    // 学年順に候補を多めに取得（'中1'<'中2'<'中3' は照合順序に依存せず安全）
+    // カリキュラム順で候補を多めに取得（基礎テーマ→学年）。
     let query = admin
       .from('words')
       .select('*')
+      .order('sort_order', { ascending: true, nullsFirst: false })
       .order('grade', { ascending: true })
       .limit(Math.max(remaining * 5, 200))
     if (!premium) query = query.eq('tier', 'free')
@@ -236,17 +248,8 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
     }
     const { data: newWords } = await query
 
-    // 易しい順に並べ替え（学年→難易度）。a-c に難語が偏っていても難関は終盤に回る。
-    const gradeRank: Record<string, number> = { '中1': 1, '中2': 2, '中3': 3 }
-    const levelRank: Record<string, number> = { '基礎': 1, '標準': 2, '難関': 3 }
-    const sorted = (newWords ?? []).slice().sort((a, b) => {
-      const ga = gradeRank[(a as Word).grade ?? ''] ?? 4
-      const gb = gradeRank[(b as Word).grade ?? ''] ?? 4
-      if (ga !== gb) return ga - gb
-      const la = levelRank[(a as Word).level ?? ''] ?? 2
-      const lb = levelRank[(b as Word).level ?? ''] ?? 2
-      return la - lb
-    })
+    // カリキュラム順（基礎テーマ→学年→難易度→アルファベット）に整える
+    const sorted = (newWords ?? []).slice().sort((a, b) => curriculumCompare(a as Word, b as Word))
     newWordItems.push(...sorted.slice(0, remaining).map(w => ({ word: w as Word, progress: null })))
   }
 
