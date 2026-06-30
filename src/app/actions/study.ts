@@ -143,39 +143,38 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const admin = createAdminClient()
   const goal = await getDailyGoal(sid)
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
+  const toDW = (w: { word: string; meaning: string }): DailyWord => ({ word: w.word, meaning: w.meaning })
 
-  // 学習済み/スキップ済み（word_id・初回学習日時・known）
-  const { data: progressRows } = await admin
-    .from('user_word_progress')
-    .select('word_id, first_learned_at, known')
-    .eq('student_id', sid)
-  const allProgress = (progressRows ?? []) as { word_id: string; first_learned_at: string | null; known: boolean }[]
-  // 今日/明日の候補から除外するのは全進捗（理解済みスキップ含む）
-  const learnedIds = new Set(allProgress.map(r => r.word_id))
-  // 昨日（直近に学んだ語）は理解済みスキップを除く
-  const learned = allProgress.filter(r => !r.known)
-
-  // 利用可能な語（tier 範囲）を取得し、カリキュラム順（基礎テーマ→学年→難易度）に並べる
-  let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order').order('grade', { ascending: true })
-  if (!premium) wq = wq.eq('tier', 'free')
-  const { data: allWords } = await wq
-
-  type WRow = { id: string; word: string; meaning: string; grade: string | null; level: string | null; sort_order: number | null }
-  const sorted = ((allWords ?? []) as WRow[]).slice().sort(curriculumCompare)
-  const wordById = new Map(sorted.map(w => [w.id, w]))
-  const toDW = (w: WRow): DailyWord => ({ word: w.word, meaning: w.meaning })
-
-  // 今日・明日 = 未学習の先頭から N 語ずつ
-  const upcoming = sorted.filter(w => !learnedIds.has(w.id))
+  // 今日・明日 = 未学習の先頭から goal 語ずつ（DB 側でアンチジョイン＋カリキュラム順）
+  const { data: upcomingRows, error: upErr } = await admin.rpc('get_unstudied_words', {
+    p_student_id: sid, p_premium: premium, p_limit: goal * 2,
+  })
+  if (upErr) throw new Error(`failed to load daily words: ${upErr.message}`)
+  const upcoming = (upcomingRows ?? []) as { word: string; meaning: string }[]
   const today = upcoming.slice(0, goal).map(toDW)
   const tomorrow = upcoming.slice(goal, goal * 2).map(toDW)
 
-  // 昨日 = 直近に学んだ N 語
-  const yesterday = learned
-    .filter(r => wordById.has(r.word_id))
-    .sort((a, b) => (b.first_learned_at ?? '').localeCompare(a.first_learned_at ?? ''))
-    .slice(0, goal)
-    .map(r => toDW(wordById.get(r.word_id)!))
+  // 昨日 = 直近に学んだ goal 語（理解済みスキップを除く）。対象だけを id 指定で取得。
+  const { data: recent } = await admin
+    .from('user_word_progress')
+    .select('word_id')
+    .eq('student_id', sid)
+    .eq('known', false)
+    .order('first_learned_at', { ascending: false, nullsFirst: false })
+    .limit(goal)
+  const recentIds = (recent ?? []).map(r => r.word_id as string)
+  let yesterday: DailyWord[] = []
+  if (recentIds.length > 0) {
+    const { data: yWords } = await admin
+      .from('words')
+      .select('id, word, meaning')
+      .in('id', recentIds)
+    const byId = new Map((yWords ?? []).map(w => [w.id as string, w as { word: string; meaning: string }]))
+    yesterday = recentIds
+      .map(id => byId.get(id))
+      .filter((w): w is { word: string; meaning: string } => Boolean(w))
+      .map(toDW)
+  }
 
   return { yesterday, today, tomorrow }
 }
@@ -200,26 +199,14 @@ export async function getUpcomingWords(limit = 120, studentId?: string): Promise
   const admin = createAdminClient()
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
-  const { data: progressRows } = await admin
-    .from('user_word_progress')
-    .select('word_id')
-    .eq('student_id', sid)
-  const usedIds = new Set((progressRows ?? []).map(r => r.word_id as string))
-
-  let wq = admin.from('words').select('id, word, meaning, grade, level, sort_order')
-    .order('sort_order', { ascending: true, nullsFirst: false }).order('grade', { ascending: true })
-  if (!premium) wq = wq.eq('tier', 'free')
-  const { data: allWords } = await wq
-
-  const sorted = ((allWords ?? []) as WRow[]).slice().sort(curriculumCompare)
-
-  const out: UpcomingWord[] = []
-  for (const w of sorted) {
-    if (usedIds.has(w.id)) continue
-    out.push({ id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: false })
-    if (out.length >= limit) break
-  }
-  return out
+  // DB 側でアンチジョイン＋カリキュラム順＋件数制限（全件取得→メモリ処理を避ける）
+  const { data, error } = await admin.rpc('get_unstudied_words', {
+    p_student_id: sid, p_premium: premium, p_limit: limit,
+  })
+  if (error) throw new Error(`failed to load upcoming words: ${error.message}`)
+  return ((data ?? []) as WRow[]).map(w => ({
+    id: w.id, word: w.word, meaning: w.meaning, grade: w.grade, known: false,
+  }))
 }
 
 // スキップ済み（known=true）の語の一覧（戻す画面用・カリキュラム順）。
@@ -362,32 +349,14 @@ export async function getTodayStudyWords(studentId?: string): Promise<TodayStudy
   })
   const remaining = limit - reviewItems.length
 
-  // 2. 新規単語（まだ学習していない）
+  // 2. 新規単語（まだ学習していない）。DB 側でアンチジョイン＋カリキュラム順＋件数制限。
   const newWordItems: { word: Word; progress: null }[] = []
   if (remaining > 0) {
-    const { data: allProgress } = await admin
-      .from('user_word_progress')
-      .select('word_id')
-      .eq('student_id', sid)
-
-    const studiedIds = new Set((allProgress ?? []).map(r => r.word_id as string))
-    // 全候補をカリキュラム順で取得し、学習済みはメモリ上で除外する。
-    // 学習履歴が膨大でも NOT IN(...) でクエリ文字列が肥大化／URL 上限超過しないようにするため。
-    let query = admin
-      .from('words')
-      .select('*')
-      .order('sort_order', { ascending: true, nullsFirst: false })
-      .order('grade', { ascending: true })
-    if (!premium) query = query.eq('tier', 'free')
-    const { data: newWords } = await query
-
-    // カリキュラム順（基礎テーマ→学年→難易度→アルファベット）に整え、未学習だけ先頭から採用
-    const sorted = (newWords ?? []).slice().sort((a, b) => curriculumCompare(a as Word, b as Word))
-    for (const w of sorted) {
-      if (studiedIds.has(w.id as string)) continue
-      newWordItems.push({ word: w as Word, progress: null })
-      if (newWordItems.length >= remaining) break
-    }
+    const { data: newWords, error: newErr } = await admin.rpc('get_unstudied_words', {
+      p_student_id: sid, p_premium: premium, p_limit: remaining,
+    })
+    if (newErr) throw new Error(`failed to load new words: ${newErr.message}`)
+    newWordItems.push(...((newWords ?? []) as Word[]).map(w => ({ word: w, progress: null as null })))
   }
 
   const items: { word: Word; progress: UserWordProgress | null }[] = [
