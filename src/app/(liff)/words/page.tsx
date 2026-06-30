@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { getUpcomingWords, getKnownWords } from '@/app/actions/study'
+import { getUpcomingWords, getKnownWordsCount } from '@/app/actions/study'
 import { WordsSkipClient } from './WordsSkipClient'
 
 // 今後学ぶ予定の語を一覧表示し、理解済みをチェックで即スキップする。
@@ -10,9 +10,9 @@ export default async function WordsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [words, known] = await Promise.all([
+  const [words, knownCount] = await Promise.all([
     getUpcomingWords(120, user.id),
-    getKnownWords(user.id),
+    getKnownWordsCount(user.id),
   ])
 
   return (
@@ -27,7 +27,7 @@ export default async function WordsPage() {
           href="/words/skipped"
           className="mt-3 inline-flex items-center gap-1 rounded-full bg-white px-4 py-2 text-sm font-bold text-gray-700 shadow-sm active:scale-95 transition-transform"
         >
-          🗂 スキップした単語（{known.length}）→
+          🗂 スキップした単語（{knownCount}）→
         </Link>
       </header>
 

@@ -68,7 +68,8 @@ export function ResultCard({ question, result, onNext, isLast, onMarkKnown, mark
 
       <button
         onClick={onNext}
-        className="w-full py-4 bg-gray-900 text-white rounded-xl text-lg font-bold active:scale-95 transition-transform"
+        disabled={marking}
+        className="w-full py-4 bg-gray-900 text-white rounded-xl text-lg font-bold active:scale-95 transition-transform disabled:opacity-50"
       >
         {isLast ? '完了！' : '次へ →'}
       </button>
