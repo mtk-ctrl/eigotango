@@ -7,6 +7,7 @@ import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
 import { buildQuestion, pickMode, type PoolItem } from '@/lib/questions'
 import { jstDate, jstDayStartUtc } from '@/lib/date'
+import { calcStreak } from '@/lib/streak'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
 import {
@@ -160,6 +161,25 @@ export async function getReviewStatus(studentId?: string): Promise<{
   const learned = learnedRes.count ?? 0
   const newRemaining = Math.max((wordsRes.count ?? 0) - learned, 0)
   return { due, overdue, newRemaining, reviewLimit, newPerDay }
+}
+
+// 本人の連続学習日数（今日 or 昨日を起点に完了日が続いている数）。
+// 親ホームの子カードと同じロジックを生徒本人のホームでも表示するために使う。
+export async function getStudentStreak(studentId?: string): Promise<number> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return 0
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const today = jstDate()
+  const { data: rows } = await admin
+    .from('study_sessions')
+    .select('session_date')
+    .eq('student_id', sid)
+    .not('completed_at', 'is', null)
+    .gte('session_date', jstDate(-364))
+  const dateSet = new Set((rows ?? []).map(r => r.session_date as string))
+  return calcStreak(dateSet, today)
 }
 
 export interface DailyWord { id: string; word: string; meaning: string }

@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChildrenData } from '@/app/actions/parent'
-import { getReviewStatus, getStudentDailyMax, getDailyWords, getReviewDailyWords } from '@/app/actions/study'
+import { getReviewStatus, getStudentDailyMax, getDailyWords, getReviewDailyWords, getStudentStreak } from '@/app/actions/study'
 import { displayNameOf } from '@/lib/profile'
 import { BottomNav } from '@/components/BottomNav'
 import { ParentHome } from './ParentHome'
@@ -41,15 +41,16 @@ export default async function HomePage() {
     )
   }
 
-  const [review, max, dailyWords, reviewWords] = await Promise.all([
+  const [review, max, dailyWords, reviewWords, streak] = await Promise.all([
     getReviewStatus(user.id),
     getStudentDailyMax(user.id),
     getDailyWords(user.id),
     getReviewDailyWords(user.id),
+    getStudentStreak(user.id),
   ])
   return (
     <>
-      <StudentHome name={name} premium={max > 20} review={review} dailyWords={dailyWords} reviewWords={reviewWords} copyHeader={copyHeader} />
+      <StudentHome name={name} premium={max > 20} review={review} dailyWords={dailyWords} reviewWords={reviewWords} copyHeader={copyHeader} streak={streak} />
       <BottomNav role="student" />
     </>
   )

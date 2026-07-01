@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { copyText } from '@/lib/clipboard'
 import { markDailyLearned, type DailyWords as DailyWordsData, type DailyWord } from '@/app/actions/study'
 
 const DAYS = [
@@ -28,7 +29,7 @@ const EMPTY: Record<DayKey, string> = {
 export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsData; studentId?: string; copyHeader?: string | null }) {
   const router = useRouter()
   const [tab, setTab] = useState<DayKey>('today')
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'ok' | 'ng' | null>(null)
   const [removed, setRemoved] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -41,13 +42,9 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
     if (words.length === 0) return
     const body = words.map(w => `${w.word}\t${w.meaning}`).join('\n')
     const text = copyHeader ? `${copyHeader}\n${body}` : body
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // クリップボード不可の環境は無視
-    }
+    const ok = await copyText(text)
+    setCopied(ok ? 'ok' : 'ng')  // 失敗も表示する（黙って何も起きないと押せたか分からない）
+    setTimeout(() => setCopied(null), 2000)
   }
 
   const markLearned = async () => {
@@ -78,7 +75,7 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
         {DAYS.map(d => (
           <button
             key={d.key}
-            onClick={() => { setTab(d.key); setCopied(false) }}
+            onClick={() => { setTab(d.key); setCopied(null) }}
             className={`flex-1 rounded-lg py-2 text-sm font-bold ${
               tab === d.key ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-600'
             }`}
@@ -113,7 +110,7 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
               onClick={copy}
               className="flex-1 rounded-xl bg-gray-100 py-2.5 text-sm font-bold text-gray-700 active:scale-95 transition-transform"
             >
-              {copied ? '✓ コピーしました' : '📋 コピー'}
+              {copied === 'ok' ? '✓ コピーしました' : copied === 'ng' ? 'コピーできませんでした' : '📋 コピー'}
             </button>
             {canMark && (
               <button

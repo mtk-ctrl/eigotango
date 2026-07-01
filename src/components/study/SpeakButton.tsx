@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface Props {
   word: string
@@ -8,6 +8,12 @@ interface Props {
 
 export function SpeakButton({ word }: Props) {
   const [speaking, setSpeaking] = useState(false)
+  // 非対応環境（古い WebView など）では押しても何も起きないボタンになるので出さない。
+  // SSR とのハイドレーション不一致を避けるためマウント後に判定する。
+  const [supported, setSupported] = useState(true)
+  useEffect(() => {
+    setSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
+  }, [])
 
   const speak = () => {
     if (!('speechSynthesis' in window)) return
@@ -20,6 +26,8 @@ export function SpeakButton({ word }: Props) {
     utterance.onerror = () => setSpeaking(false)
     window.speechSynthesis.speak(utterance)
   }
+
+  if (!supported) return null
 
   return (
     <button
