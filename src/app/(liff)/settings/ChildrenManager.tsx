@@ -10,7 +10,9 @@ import {
   type ChildData,
 } from '@/app/actions/parent'
 import { GoalPicker } from '@/components/GoalPicker'
+import { QuestionModeChoices } from '@/components/QuestionModeChoices'
 import { goalOptionsFor, FREE_DAILY_MAX, PREMIUM_DAILY_MAX } from '@/lib/constants'
+import type { QuestionModeSetting } from '@/types/database'
 
 // せってい内の「こども管理」: 追加・名前/問題数の編集・連携・削除。
 // ホームは状況閲覧と学習導線に専念し、管理はここに集約する。
@@ -195,10 +197,11 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
   )
 }
 
-// 子どもの設定（名前・問題数・削除）
+// 子どもの設定（名前・問題数・出題形式・削除）
 function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalOptions: number[]; onDone: () => void }) {
   const [name, setName] = useState(child.name)
   const [goal, setGoal] = useState(child.dailyGoal)
+  const [questionMode, setQuestionMode] = useState<QuestionModeSetting>(child.questionMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -214,6 +217,7 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
       await updateChildSettings(child.id, {
         name: child.isManaged ? name : undefined,
         dailyGoal: goal,
+        questionMode,
       })
       onDone()
     } catch (e) {
@@ -254,6 +258,10 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
       <div>
         <p className="mb-1 text-xs text-gray-500">1日の問題数</p>
         <GoalPicker value={goal} options={goalOptions} onChange={setGoal} />
+      </div>
+      <div>
+        <p className="mb-1 text-xs text-gray-500">出題形式</p>
+        <QuestionModeChoices value={questionMode} onChange={setQuestionMode} />
       </div>
       {error && <p className="text-sm text-red-500">{error}</p>}
       <div className="flex gap-2">
