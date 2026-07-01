@@ -137,6 +137,13 @@ export async function getReviewStatus(studentId?: string): Promise<{
   const [dueRes, overdueRes, learnedRes, wordsRes, reviewLimit, newPerDay] = await Promise.all([
     dueQuery, overdueQuery, learnedQuery, wordsCountQuery, getReviewLimit(sid), getNewPerDay(sid),
   ])
+  // count クエリの失敗を握りつぶすと count=null が ?? 0 でサイレントに0件表示になり、
+  // 「復習対象があるのに出てこない」不具合が検知できなくなるため必ず surface する。
+  if (dueRes.error) throw new Error(`failed to count due reviews: ${dueRes.error.message}`)
+  if (overdueRes.error) throw new Error(`failed to count overdue reviews: ${overdueRes.error.message}`)
+  if (learnedRes.error) throw new Error(`failed to count learned words: ${learnedRes.error.message}`)
+  if (wordsRes.error) throw new Error(`failed to count available words: ${wordsRes.error.message}`)
+
   const due = dueRes.count ?? 0
   const overdue = overdueRes.count ?? 0
   const learned = learnedRes.count ?? 0
