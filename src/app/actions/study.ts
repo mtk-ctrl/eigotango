@@ -114,16 +114,16 @@ export async function getReviewStatus(studentId?: string): Promise<{
   const today = jstDate()
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
 
-  // 学習済みの進捗（語の tier を同時取得して無料ユーザーは free のみ集計）
-  const { data: progressRows } = await admin
+  // 学習済みの進捗（tier フィルタは !inner join で DB 側にかける。無料ユーザーの集計に
+  // premium 語が混ざらないようにしつつ、メモリでの全件フィルタを避ける）
+  let progressQuery = admin
     .from('user_word_progress')
-    .select('next_review_date, word:words(tier)')
+    .select('next_review_date, word:words!inner(tier)')
     .eq('student_id', sid)
+  if (!premium) progressQuery = progressQuery.eq('word.tier', 'free')
+  const { data: progressRows } = await progressQuery
 
-  const rows = (progressRows ?? []).filter(r => {
-    const w = r.word as unknown as { tier: string } | null
-    return premium || w?.tier === 'free'
-  })
+  const rows = progressRows ?? []
   const due = rows.filter(r => (r.next_review_date as string) <= today).length
   const overdue = rows.filter(r => (r.next_review_date as string) < today).length
   const learned = rows.length
@@ -201,19 +201,23 @@ export async function getReviewDailyWords(studentId?: string): Promise<DailyWord
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
   const limit = await getReviewLimit(sid)
 
-  const { data: rows } = await admin
+  // tier フィルタは !inner join で DB 側にかける（limit の後にメモリでフィルタすると、
+  // 期限切れ復習にプレミアム語が多いダウングレード済みユーザーで
+  // 「取得した limit 件が全部除外されて0件に見える」キュー詰まりが起きるため）
+  let query = admin
     .from('user_word_progress')
-    .select('next_review_date, words(id, word, meaning, tier)')
+    .select('next_review_date, words!inner(id, word, meaning, tier)')
     .eq('student_id', sid)
     .eq('known', false)
     .lte('next_review_date', today)
+  if (!premium) query = query.eq('words.tier', 'free')
+  const { data: rows } = await query
     .order('next_review_date')
     .limit(limit)
 
   return (rows ?? [])
-    .map(r => r.words as unknown as { id: string; word: string; meaning: string; tier: string } | null)
-    .filter((w): w is { id: string; word: string; meaning: string; tier: string } =>
-      Boolean(w) && (premium || w!.tier === 'free'))
+    .map(r => r.words as unknown as { id: string; word: string; meaning: string } | null)
+    .filter((w): w is { id: string; word: string; meaning: string } => Boolean(w))
     .map(w => ({ id: w.id, word: w.word, meaning: w.meaning }))
 }
 
@@ -419,22 +423,22 @@ export async function getStudyWords(studentId: string | undefined, mode: StudyMo
   const items: { word: Word; progress: UserWordProgress | null }[] = []
 
   if (mode === 'review') {
-    // 復習単語（next_review_date が今日以前）を上限まで
+    // 復習単語（next_review_date が今日以前）を上限まで。
+    // tier フィルタは !inner join で DB 側にかける（limit の後にメモリでフィルタすると、
+    // 期限切れ復習にプレミアム語が多いダウングレード済みユーザーで
+    // 「取得した limit 件が全部除外されて0件に見える」キュー詰まりが起きるため）
     const limit = await getReviewLimit(sid)
-    const { data: progressRows } = await admin
+    let query = admin
       .from('user_word_progress')
-      .select('*, word:words(*)')
+      .select('*, word:words!inner(*)')
       .eq('student_id', sid)
       .eq('known', false)
       .lte('next_review_date', today)
+    if (!premium) query = query.eq('word.tier', 'free')
+    const { data: progressRows } = await query
       .order('next_review_date')
       .limit(limit)
-    // 無料ユーザーは念のため premium 語を除外（過去にプレミアムだった場合の保険）
-    const reviewItems = (progressRows ?? []).filter(r => {
-      const w = r.word as Word | null
-      return w && (premium || w.tier === 'free')
-    })
-    items.push(...reviewItems.map(r => ({ word: r.word as Word, progress: r as UserWordProgress })))
+    items.push(...(progressRows ?? []).map(r => ({ word: r.word as Word, progress: r as UserWordProgress })))
   } else {
     // 新規単語（まだ学習していない）。DB 側でアンチジョイン＋カリキュラム順＋件数制限。
     const limit = await getNewPerDay(sid)
