@@ -6,13 +6,18 @@ import { jstDate } from '@/lib/date'
 import { calcStreak } from '@/lib/streak'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
-import { MANAGED_EMAIL_DOMAIN, PREMIUM_DAILY_MAX, DEFAULT_DAILY_GOAL } from '@/lib/constants'
+import { MANAGED_EMAIL_DOMAIN, PREMIUM_DAILY_MAX, DEFAULT_DAILY_GOAL, DEFAULT_NEW_PER_DAY } from '@/lib/constants'
 import type { QuestionModeSetting } from '@/types/database'
 
 const randomUUID = () => crypto.randomUUID()
 
 function clampGoal(goal: number): number {
   return Math.min(Math.max(Math.round(goal), 1), PREMIUM_DAILY_MAX)
+}
+
+// 新規語数は 0（新規なし）を許容する点だけ復習上限と異なる
+function clampNewPerDay(n: number): number {
+  return Math.min(Math.max(Math.round(n), 0), PREMIUM_DAILY_MAX)
 }
 
 // エラーの詳細をできるだけ拾って文字列化（本番で原因を読めるようにする）
@@ -112,10 +117,15 @@ export async function addManagedChild(name: string, dailyGoal: number): Promise<
   }
 }
 
-// 子どもの名前・1日の問題数・出題形式を更新（問題数/出題形式は親が設定 → ロック）
+// 子どもの名前・1日の問題数（新規/復習）・出題形式を更新（親が設定した項目はロック）
 export async function updateChildSettings(
   childId: string,
-  { name, dailyGoal, questionMode }: { name?: string; dailyGoal?: number; questionMode?: QuestionModeSetting },
+  { name, dailyGoal, newPerDay, questionMode }: {
+    name?: string
+    dailyGoal?: number
+    newPerDay?: number
+    questionMode?: QuestionModeSetting
+  },
 ): Promise<void> {
   const parentId = await requireParent()
   await assertOwnsChild(parentId, childId)
@@ -126,6 +136,10 @@ export async function updateChildSettings(
   if (typeof dailyGoal === 'number') {
     patch.daily_goal = clampGoal(dailyGoal)
     patch.daily_goal_locked = true  // 親優先
+  }
+  if (typeof newPerDay === 'number') {
+    patch.new_per_day = clampNewPerDay(newPerDay)
+    patch.daily_goal_locked = true  // 親優先（自己設定と同じロックフラグを共用）
   }
   if (questionMode) {
     patch.question_mode = questionMode
@@ -237,7 +251,8 @@ export async function submitPairingCode(code: string): Promise<void> {
 export interface ChildData {
   id: string
   name: string
-  dailyGoal: number
+  dailyGoal: number      // 1日の復習(アクティブリコール)上限
+  newPerDay: number      // 1日に学ぶ新しい単語の数
   questionMode: QuestionModeSetting
   isManaged: boolean
   todaySession: { total_words: number; correct_words: number; completed_at: string | null } | null
@@ -254,7 +269,7 @@ export async function getChildrenData(): Promise<ChildData[]> {
 
   const { data: relations } = await admin
     .from('student_parent_relations')
-    .select('student_id, profiles!student_id(id, display_name, line_display_name, daily_goal, question_mode, managed_by)')
+    .select('student_id, profiles!student_id(id, display_name, line_display_name, daily_goal, new_per_day, question_mode, managed_by)')
     .eq('parent_id', parentId)
     .not('paired_at', 'is', null)
 
@@ -288,6 +303,7 @@ export async function getChildrenData(): Promise<ChildData[]> {
       display_name: string | null
       line_display_name: string | null
       daily_goal: number | null
+      new_per_day: number | null
       question_mode: QuestionModeSetting | null
       managed_by: string | null
     } | null
@@ -302,6 +318,7 @@ export async function getChildrenData(): Promise<ChildData[]> {
       id: r.student_id,
       name: displayNameOf(p, '名前未設定'),
       dailyGoal: p?.daily_goal ?? DEFAULT_DAILY_GOAL,
+      newPerDay: p?.new_per_day ?? DEFAULT_NEW_PER_DAY,
       questionMode: p?.question_mode ?? 'auto',
       isManaged: p?.managed_by === parentId,
       todaySession: session,

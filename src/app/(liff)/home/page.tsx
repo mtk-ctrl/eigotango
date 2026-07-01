@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getChildrenData } from '@/app/actions/parent'
 import { getReviewStatus, getStudentDailyMax, getDailyWords, getReviewDailyWords, getStudentStreak } from '@/app/actions/study'
+import { FREE_DAILY_MAX } from '@/lib/constants'
 import { displayNameOf } from '@/lib/profile'
 import { BottomNav } from '@/components/BottomNav'
 import { ParentHome } from './ParentHome'
@@ -50,7 +51,7 @@ export default async function HomePage() {
   ])
   return (
     <>
-      <StudentHome name={name} premium={max > 20} review={review} dailyWords={dailyWords} reviewWords={reviewWords} copyHeader={copyHeader} streak={streak} />
+      <StudentHome name={name} premium={max > FREE_DAILY_MAX} review={review} dailyWords={dailyWords} reviewWords={reviewWords} copyHeader={copyHeader} streak={streak} />
       <BottomNav role="student" />
     </>
   )

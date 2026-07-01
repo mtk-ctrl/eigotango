@@ -11,14 +11,16 @@ import {
 } from '@/app/actions/parent'
 import { GoalPicker } from '@/components/GoalPicker'
 import { QuestionModeChoices } from '@/components/QuestionModeChoices'
-import { goalOptionsFor, FREE_DAILY_MAX, PREMIUM_DAILY_MAX } from '@/lib/constants'
+import { goalOptionsFor, newGoalOptionsFor, FREE_DAILY_MAX, PREMIUM_DAILY_MAX } from '@/lib/constants'
 import type { QuestionModeSetting } from '@/types/database'
 
-// せってい内の「こども管理」: 追加・名前/問題数の編集・連携・削除。
-// ホームは状況閲覧と学習導線に専念し、管理はここに集約する。
+// せってい内の「お子さまの学習設定」: 追加・名前/問題数/出題形式の編集・連携・削除。
+// ここでの変更は「お子さま本人の設定」であり、保護者自身の学習設定（このページ下部の
+// 「自分の学習設定」）とは別物であることを見出し・説明文で明示する。
 export function ChildrenManager({ children, premium }: { children: ChildData[]; premium: boolean }) {
   const router = useRouter()
   const goalOptions = goalOptionsFor(premium ? PREMIUM_DAILY_MAX : FREE_DAILY_MAX)
+  const newGoalOptions = newGoalOptionsFor(premium ? PREMIUM_DAILY_MAX : FREE_DAILY_MAX)
 
   const [addMode, setAddMode] = useState<null | 'managed' | 'pairing'>(null)
   const [newName, setNewName] = useState('')
@@ -66,7 +68,10 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-3 text-sm font-bold text-gray-700">こども</h2>
+      <h2 className="mb-1 text-sm font-bold text-gray-700">👶 お子さまの学習設定</h2>
+      <p className="mb-3 text-xs text-gray-400">
+        追加・名前・1日の問題数・出題形式など、お子さまごとの設定はここでまとめて行います。
+      </p>
 
       {/* 子ども一覧（編集・削除） */}
       {children.length > 0 && (
@@ -89,12 +94,15 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
                   {editing === child.id ? '閉じる' : '編集'}
                 </button>
               </div>
-              <p className="mt-0.5 text-xs text-gray-400">1日 {child.dailyGoal}語</p>
+              <p className="mt-0.5 text-xs text-gray-400">
+                1日 新規{child.newPerDay}語・復習上限{child.dailyGoal}語
+              </p>
 
               {editing === child.id && (
                 <ChildSettings
                   child={child}
                   goalOptions={goalOptions}
+                  newGoalOptions={newGoalOptions}
                   onDone={() => { setEditing(null); router.refresh() }}
                 />
               )}
@@ -143,7 +151,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
                 className="w-full rounded-xl border-2 border-gray-200 p-3 focus:border-green-400 focus:outline-none"
               />
               <div>
-                <p className="mb-1 text-xs text-gray-500">1日の問題数</p>
+                <p className="mb-1 text-xs text-gray-500">1日の復習の上限（新しい単語の数などは追加後に編集できます）</p>
                 <GoalPicker value={newGoal} options={goalOptions} onChange={setNewGoal} />
               </div>
               <div className="flex gap-2">
@@ -198,9 +206,17 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
 }
 
 // 子どもの設定（名前・問題数・出題形式・削除）
-function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalOptions: number[]; onDone: () => void }) {
+function ChildSettings({
+  child, goalOptions, newGoalOptions, onDone,
+}: {
+  child: ChildData
+  goalOptions: number[]
+  newGoalOptions: number[]
+  onDone: () => void
+}) {
   const [name, setName] = useState(child.name)
   const [goal, setGoal] = useState(child.dailyGoal)
+  const [newPerDay, setNewPerDay] = useState(child.newPerDay)
   const [questionMode, setQuestionMode] = useState<QuestionModeSetting>(child.questionMode)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -213,11 +229,13 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
     setSaving(true)
     setError('')
     try {
-      // 連携の子は名前を変更しない（不要な更新を避ける）
+      // 実際に変更したフィールドだけ渡す。未変更の項目まで送ると、そのたび
+      // daily_goal_locked が true になり、触っていない設定まで意図せずロックされるため。
       await updateChildSettings(child.id, {
-        name: child.isManaged ? name : undefined,
-        dailyGoal: goal,
-        questionMode,
+        name: child.isManaged && name !== child.name ? name : undefined,
+        dailyGoal: goal !== child.dailyGoal ? goal : undefined,
+        newPerDay: newPerDay !== child.newPerDay ? newPerDay : undefined,
+        questionMode: questionMode !== child.questionMode ? questionMode : undefined,
       })
       onDone()
     } catch (e) {
@@ -244,6 +262,7 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
 
   return (
     <div className="mt-3 flex flex-col gap-3 border-t border-gray-100 pt-3">
+      <p className="text-xs font-bold text-gray-500">{child.name}さんの設定</p>
       {child.isManaged && (
         <div>
           <p className="mb-1 text-xs text-gray-500">名前</p>
@@ -256,7 +275,11 @@ function ChildSettings({ child, goalOptions, onDone }: { child: ChildData; goalO
         </div>
       )}
       <div>
-        <p className="mb-1 text-xs text-gray-500">1日の問題数</p>
+        <p className="mb-1 text-xs text-gray-500">1日に学ぶ新しい単語</p>
+        <GoalPicker value={newPerDay} options={newGoalOptions} onChange={setNewPerDay} />
+      </div>
+      <div>
+        <p className="mb-1 text-xs text-gray-500">1日の復習の上限</p>
         <GoalPicker value={goal} options={goalOptions} onChange={setGoal} />
       </div>
       <div>
