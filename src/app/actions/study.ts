@@ -113,28 +113,34 @@ export async function getReviewStatus(studentId?: string): Promise<{
   const admin = createAdminClient()
   const today = jstDate()
   const premium = (await getStudentDailyMax(sid)) > FREE_MAX
+  // 無料ユーザーの集計だけ words との !inner join で tier=free に絞る。
+  // プレミアムは join 不要（user_word_progress 単体でインデックスオンリースキャン）。
+  const selectCols = premium ? 'id' : 'id, words!inner(tier)'
 
-  // 学習済みの進捗（tier フィルタは !inner join で DB 側にかける。無料ユーザーの集計に
-  // premium 語が混ざらないようにしつつ、メモリでの全件フィルタを避ける）
-  let progressQuery = admin
-    .from('user_word_progress')
-    .select('next_review_date, word:words!inner(tier)')
+  // due/overdue/learned は DB 側の count(exact, head) で直接取得する。
+  // メモリで全件フィルタすると PostgREST の既定1000件上限で学習済みが多いユーザーの
+  // カウントが頭打ちになり、newRemaining が実際より多く出る等の不具合になるため。
+  let dueQuery = admin.from('user_word_progress').select(selectCols, { count: 'exact', head: true })
+    .eq('student_id', sid).lte('next_review_date', today)
+  let overdueQuery = admin.from('user_word_progress').select(selectCols, { count: 'exact', head: true })
+    .eq('student_id', sid).lt('next_review_date', today)
+  let learnedQuery = admin.from('user_word_progress').select(selectCols, { count: 'exact', head: true })
     .eq('student_id', sid)
-  if (!premium) progressQuery = progressQuery.eq('word.tier', 'free')
-  const { data: progressRows } = await progressQuery
+  let wordsCountQuery = admin.from('words').select('id', { count: 'exact', head: true })
+  if (!premium) {
+    dueQuery = dueQuery.eq('words.tier', 'free')
+    overdueQuery = overdueQuery.eq('words.tier', 'free')
+    learnedQuery = learnedQuery.eq('words.tier', 'free')
+    wordsCountQuery = wordsCountQuery.eq('tier', 'free')
+  }
 
-  const rows = progressRows ?? []
-  const due = rows.filter(r => (r.next_review_date as string) <= today).length
-  const overdue = rows.filter(r => (r.next_review_date as string) < today).length
-  const learned = rows.length
-
-  // 利用可能な語の総数（tier 範囲）から学習済みを引いて新規残数
-  let countQuery = admin.from('words').select('id', { count: 'exact', head: true })
-  if (!premium) countQuery = countQuery.eq('tier', 'free')
-  const { count } = await countQuery
-  const newRemaining = Math.max((count ?? 0) - learned, 0)
-
-  const [reviewLimit, newPerDay] = await Promise.all([getReviewLimit(sid), getNewPerDay(sid)])
+  const [dueRes, overdueRes, learnedRes, wordsRes, reviewLimit, newPerDay] = await Promise.all([
+    dueQuery, overdueQuery, learnedQuery, wordsCountQuery, getReviewLimit(sid), getNewPerDay(sid),
+  ])
+  const due = dueRes.count ?? 0
+  const overdue = overdueRes.count ?? 0
+  const learned = learnedRes.count ?? 0
+  const newRemaining = Math.max((wordsRes.count ?? 0) - learned, 0)
   return { due, overdue, newRemaining, reviewLimit, newPerDay }
 }
 
