@@ -1,6 +1,6 @@
 // 出題の組み立てと回答判定（モード別・複数正解対応）
 import { levenshtein, type SpellingResultType } from '@/lib/levenshtein'
-import type { Word } from '@/types/database'
+import type { Word, QuestionModeSetting } from '@/types/database'
 import type { QuestionMode, StudyQuestion } from '@/types/api'
 
 // 誤答候補の素材（同 tier の他の語）
@@ -38,9 +38,16 @@ function sharesMeaning(a: string, b: string): boolean {
   return false
 }
 
-// SM-2 の習熟段階から出題モードを決定（同じ語が日をまたいで別形式で再出題される）
-// 熟語はスペル入力が酷なので 4 択のみにする。
-export function pickMode(repetitions: number, isIdiom: boolean): QuestionMode {
+// SM-2 の習熟段階から出題モードを決定（同じ語が日をまたいで別形式で再出題される）。
+// override で 'auto' 以外が指定された場合はそれに固定する（設定画面で選択）。
+// 熟語はスペル入力が酷なので、自動時・固定時とも 4 択（未学習なら英→日、それ以外は日→英）にフォールバック。
+export function pickMode(repetitions: number, isIdiom: boolean, override: QuestionModeSetting = 'auto'): QuestionMode {
+  if (override !== 'auto') {
+    if (isIdiom && override === 'ja_to_en_spell') {
+      return repetitions <= 0 ? 'en_to_ja_choice' : 'ja_to_en_choice'
+    }
+    return override
+  }
   if (repetitions <= 0) return 'en_to_ja_choice'
   if (isIdiom) return 'ja_to_en_choice'
   if (repetitions <= 2) return 'ja_to_en_choice'

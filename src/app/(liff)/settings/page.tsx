@@ -6,13 +6,14 @@ import { getChildrenData } from '@/app/actions/parent'
 import { displayNameOf } from '@/lib/profile'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { CopyHeaderSetting } from '@/components/CopyHeaderSetting'
+import { QuestionModePicker } from '@/components/QuestionModePicker'
 import { BottomNav } from '@/components/BottomNav'
 import { LogoutButton } from '@/components/LogoutButton'
 import { SettingsClient } from './SettingsClient'
 import { ChildrenManager } from './ChildrenManager'
 import { FeedbackForm } from './FeedbackForm'
 import { UpgradeButton } from './UpgradeButton'
-import type { NotificationChannel } from '@/types/database'
+import type { NotificationChannel, QuestionModeSetting } from '@/types/database'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -21,7 +22,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name, line_display_name, email, daily_goal, new_per_day, copy_header, daily_goal_locked, notification_channel, line_user_id')
+    .select('role, display_name, line_display_name, email, daily_goal, new_per_day, copy_header, question_mode, daily_goal_locked, notification_channel, line_user_id')
     .eq('id', user.id)
     .single()
 
@@ -67,6 +68,12 @@ export default async function SettingsPage() {
           current={profile?.daily_goal ?? 10}
           locked={profile?.daily_goal_locked ?? false}
           max={max}
+        />
+
+        {/* 出題形式（英→日4択／日→英4択／日→英スペル／自動） */}
+        <QuestionModePicker
+          current={(profile?.question_mode as QuestionModeSetting) ?? 'auto'}
+          locked={profile?.daily_goal_locked ?? false}
         />
 
         {/* 単語リストのコピー時に付ける見出し */}
