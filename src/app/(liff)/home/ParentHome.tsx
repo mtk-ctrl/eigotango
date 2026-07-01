@@ -63,28 +63,33 @@ export function ParentHome({ name, premium, children, dailyWords, reviewWords, c
           )}
         </section>
 
-        {/* 自分でも学習する（副次・控えめ） */}
+        {/* 自分でも学習する（副次・控えめ）。こどもカードと同じボタン配置に統一 */}
         <section>
           <div className="rounded-2xl bg-white p-4 shadow-sm">
             <p className="font-bold text-gray-700">自分でも学習する</p>
             <p className="text-xs text-gray-400">保護者の方も問題に挑戦できます</p>
-            <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex flex-col gap-2">
+              <div className="flex gap-2">
+                <Link
+                  href="/study"
+                  className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+                >
+                  📚 新しい単語
+                </Link>
+                <Link
+                  href="/review"
+                  className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+                >
+                  🔁 復習
+                </Link>
+              </div>
               <Link
-                href="/study"
-                className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+                href="/progress"
+                className="rounded-xl bg-gray-100 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
               >
-                📚 新しい単語
-              </Link>
-              <Link
-                href="/review"
-                className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
-              >
-                🔁 復習
+                📈 自分の学習きろくを見る
               </Link>
             </div>
-            <Link href="/progress" className="mt-2 block text-xs text-gray-400 underline">
-              自分の学習きろくを見る
-            </Link>
           </div>
         </section>
 
@@ -143,35 +148,37 @@ function ChildCard({ child }: { child: ChildData }) {
 
       <p className="mt-3 text-xs text-gray-400">累計 {child.totalLearned}語</p>
 
-      {/* アクション（状況・種別で出し分け） */}
-      <div className="mt-3 flex gap-2">
+      {/* アクション（状況・種別で出し分け）。自分の学習欄と同じ配置: 新しい単語/復習を並べ、きろくは下に帯で */}
+      <div className="mt-3 flex flex-col gap-2">
         {child.isManaged ? (
           <>
-            <Link
-              href={`/study?child=${child.id}`}
-              className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
-            >
-              📚 新しい単語
-            </Link>
-            <Link
-              href={`/review?child=${child.id}`}
-              className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
-            >
-              🔁 復習
-            </Link>
+            <div className="flex gap-2">
+              <Link
+                href={`/study?child=${child.id}`}
+                className="flex-1 rounded-xl bg-green-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                📚 新しい単語
+              </Link>
+              <Link
+                href={`/review?child=${child.id}`}
+                className="flex-1 rounded-xl bg-blue-500 py-2.5 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                🔁 復習
+              </Link>
+            </div>
             <Link
               href={`/progress?child=${child.id}`}
-              className="rounded-xl bg-gray-100 px-3 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
+              className="rounded-xl bg-gray-100 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
             >
-              きろく
+              📈 きろくを見る
             </Link>
           </>
         ) : (
           <Link
             href={`/progress?child=${child.id}`}
-            className="flex-1 rounded-xl bg-gray-100 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
+            className="rounded-xl bg-gray-100 py-2.5 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
           >
-            きろくを見る
+            📈 きろくを見る
           </Link>
         )}
       </div>
