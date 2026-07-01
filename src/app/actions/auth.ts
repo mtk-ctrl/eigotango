@@ -1,7 +1,17 @@
 'use server'
 
 import { redirect } from 'next/navigation'
+import { revalidatePath } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
+
+// 出題形式・問題数などの自己設定は /study /review /home に反映される。
+// Server Action 内の更新自体は即座に効くが、Next.js のクライアント側ルーターキャッシュにより
+// <Link> でのソフトナビゲーションだと直後の再訪問で古い表示が出ることがあるため revalidate する。
+function revalidateStudyPaths() {
+  revalidatePath('/study')
+  revalidatePath('/review')
+  revalidatePath('/home')
+}
 
 export async function signOut() {
   const supabase = await createClient()
@@ -43,6 +53,7 @@ export async function setMyDailyGoal(goal: number) {
 
   const clamped = Math.min(Math.max(Math.round(goal), 1), 100)
   await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
+  revalidateStudyPaths()
 }
 
 // 本人の1日の新規語数を設定（親がロックしている場合は変更不可 = 親優先）。0=新規なし
@@ -63,6 +74,7 @@ export async function setMyNewPerDay(n: number) {
 
   const clamped = Math.min(Math.max(Math.round(n), 0), 100)
   await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
+  revalidateStudyPaths()
 }
 
 // 出題形式を設定（親がロックしている場合は変更不可 = 親優先）
@@ -82,6 +94,7 @@ export async function setMyQuestionMode(mode: 'auto' | 'en_to_ja_choice' | 'ja_t
   }
 
   await admin.from('profiles').update({ question_mode: mode }).eq('id', user.id)
+  revalidateStudyPaths()
 }
 
 // 単語リストのコピー時に先頭へ付ける見出しを設定（空文字＝見出しなし）
@@ -94,6 +107,7 @@ export async function setMyCopyHeader(header: string) {
   const cleaned = header.replace(/[\r\n]+/g, ' ').trim().slice(0, 40)
   const admin = createAdminClient()
   await admin.from('profiles').update({ copy_header: cleaned || null }).eq('id', user.id)
+  revalidatePath('/home')
 }
 
 // 通知方法を変更（オフ / メール / LINE / 両方）

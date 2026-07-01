@@ -171,20 +171,28 @@ export default async function ProgressPage({
           )}
         </div>
 
-        {/* 子どもの記録を見ているとき: 学習導線とホームへ戻る */}
+        {/* 子どもの記録を見ているとき: 学習導線（新しい単語/復習、ホーム画面と同じ配置）とホームへ戻る */}
         {viewingChild && (
-          <div className="flex gap-3">
-            <Link
-              href={`/study?child=${studentId}`}
-              className="flex-1 rounded-xl bg-green-500 py-4 text-center font-bold text-white active:scale-95 transition-transform"
-            >
-              この子の学習へ →
-            </Link>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <Link
+                href={`/study?child=${studentId}`}
+                className="flex-1 rounded-xl bg-green-500 py-3 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                📚 新しい単語
+              </Link>
+              <Link
+                href={`/review?child=${studentId}`}
+                className="flex-1 rounded-xl bg-blue-500 py-3 text-center text-sm font-bold text-white active:scale-95 transition-transform"
+              >
+                🔁 復習
+              </Link>
+            </div>
             <Link
               href="/home"
-              className="rounded-xl border border-gray-200 bg-white px-5 py-4 text-center text-sm text-gray-600 active:scale-95 transition-transform"
+              className="rounded-xl bg-gray-100 py-3 text-center text-sm font-bold text-gray-700 active:scale-95 transition-transform"
             >
-              ホーム
+              ホームへ戻る
             </Link>
           </div>
         )}

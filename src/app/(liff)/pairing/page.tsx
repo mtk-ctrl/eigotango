@@ -13,8 +13,8 @@ export default async function PairingPage() {
     .eq('id', user.id)
     .single()
 
-  // 親はペアリングページを使わない（親ダッシュボードでコード発行）
-  if (profile?.role === 'parent') redirect('/parent')
+  // 親はペアリングページを使わない（ホームでコード発行）
+  if (profile?.role === 'parent') redirect('/home')
 
   return <PairingClient />
 }
