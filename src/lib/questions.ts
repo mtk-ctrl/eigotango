@@ -7,6 +7,9 @@ import type { QuestionMode, StudyQuestion } from '@/types/api'
 export interface PoolItem {
   word: string
   meaning: string
+  grade: string | null
+  level: string | null
+  isIdiom: boolean
 }
 
 // 英語答えの正規化（小文字化・連続空白の圧縮・前後空白除去・末尾句読点除去）
@@ -69,6 +72,20 @@ function buildChoices(correct: string, candidates: string[], exclude: string[]):
   return shuffle([correct, ...distractors])
 }
 
+// 誤答候補を出題語の難易度に近いものへ絞り込む（例: 中1基礎の dog に対し
+// 中3受験レベルの熟語が紛れ込む、といった難易度のミスマッチを防ぐ）。
+// 「同学年+同じ熟語区分」→「同学年」→「プール全体」の順に、正解と語義が
+// 重ならない候補が3件以上見つかる段階まで段階的に広げる。
+function pickCandidatePool(word: Word, pool: PoolItem[]): PoolItem[] {
+  const sameGradeAndKind = pool.filter(p => p.grade === word.grade && p.isIdiom === word.is_idiom)
+  const sameGrade = pool.filter(p => p.grade === word.grade)
+  for (const candidates of [sameGradeAndKind, sameGrade, pool]) {
+    const safeCount = candidates.filter(p => !sharesMeaning(p.meaning, word.meaning)).length
+    if (safeCount >= 3) return candidates
+  }
+  return pool
+}
+
 // 1問を組み立てる。pool は同 tier の他の語（誤答の素材）。
 export function buildQuestion(
   word: Word,
@@ -76,8 +93,9 @@ export function buildQuestion(
   pool: PoolItem[],
 ): StudyQuestion {
   const answers = (word.answers_en && word.answers_en.length > 0) ? word.answers_en : [word.word]
+  const candidates = pickCandidatePool(word, pool)
   // 正解と語義が重なる語は誤答に使わない（big/large, glad/happy などの取り違え防止）
-  const safe = pool.filter(p => !sharesMeaning(p.meaning, word.meaning))
+  const safe = candidates.filter(p => !sharesMeaning(p.meaning, word.meaning))
 
   if (mode === 'en_to_ja_choice') {
     return {

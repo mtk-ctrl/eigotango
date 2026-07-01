@@ -5,7 +5,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { calculateSM2 } from '@/lib/sm2'
 import { sendLinePushMessage } from '@/lib/line'
 import { sendEmail, buildParentNotificationHtml } from '@/lib/email'
-import { buildQuestion, pickMode } from '@/lib/questions'
+import { buildQuestion, pickMode, type PoolItem } from '@/lib/questions'
 import { jstDate, jstDayStartUtc } from '@/lib/date'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
@@ -467,11 +467,30 @@ export async function getStudyWords(studentId: string | undefined, mode: StudyMo
   // 出題なし（新規を学び切った / 復習が0件）ならセッションを作らず空で返す
   if (items.length === 0) return { sessionId: '', questions: [] }
 
-  // 3. 誤答候補プール（同 tier 範囲の語・word と meaning のペア）
-  let poolQuery = admin.from('words').select('word, meaning').limit(200)
-  if (!premium) poolQuery = poolQuery.eq('tier', 'free')
-  const { data: poolRows } = await poolQuery
-  const pool = (poolRows ?? []).map(p => ({ word: p.word as string, meaning: p.meaning as string }))
+  // 3. 誤答候補プール（同 tier 範囲・出題語と同じ学年を優先して集める）。
+  // 学年を無視すると「dog（中1基礎）」に「〜に影響を与える（中3受験語）」のような
+  // 難易度が離れすぎた誤答が混ざるミスマッチが起きるため、今日出題する語の学年ごとに
+  // 候補を集めた上で、広い予備プールもフォールバックとして用意する。
+  type PoolRow = { word: string; meaning: string; grade: string | null; level: string | null; is_idiom: boolean }
+  const gradesNeeded = [...new Set(items.map(({ word }) => word.grade))]
+  const [gradedPools, fallbackPool] = await Promise.all([
+    Promise.all(gradesNeeded.map(async grade => {
+      let q = admin.from('words').select('word, meaning, grade, level, is_idiom').limit(60)
+      if (!premium) q = q.eq('tier', 'free')
+      q = grade === null ? q.is('grade', null) : q.eq('grade', grade)
+      const { data } = await q
+      return (data ?? []) as PoolRow[]
+    })),
+    (async () => {
+      let q = admin.from('words').select('word, meaning, grade, level, is_idiom').limit(200)
+      if (!premium) q = q.eq('tier', 'free')
+      const { data } = await q
+      return (data ?? []) as PoolRow[]
+    })(),
+  ])
+  const pool: PoolItem[] = [...gradedPools.flat(), ...fallbackPool].map(p => ({
+    word: p.word, meaning: p.meaning, grade: p.grade, level: p.level, isIdiom: p.is_idiom,
+  }))
 
   // 4. 各語をモード別の問題に変換（熟語はスペルを避け 4 択のみ）
   const questions: StudyQuestion[] = items.map(({ word, progress }) => {
