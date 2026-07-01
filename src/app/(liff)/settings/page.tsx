@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
 import { getChildrenData } from '@/app/actions/parent'
+import { FREE_DAILY_MAX } from '@/lib/constants'
 import { displayNameOf } from '@/lib/profile'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { CopyHeaderSetting } from '@/components/CopyHeaderSetting'
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
 
   const isParent = profile?.role === 'parent'
   const max = await getStudentDailyMax(user.id)
-  const premium = max > 20
+  const premium = max > FREE_DAILY_MAX
   const displayName = displayNameOf(profile)
   const children = isParent ? await getChildrenData() : []
 

@@ -9,10 +9,11 @@ interface Props {
 export function SpeakButton({ word }: Props) {
   const [speaking, setSpeaking] = useState(false)
   // 非対応環境（古い WebView など）では押しても何も起きないボタンになるので出さない。
-  // SSR とのハイドレーション不一致を避けるためマウント後に判定する。
-  const [supported, setSupported] = useState(true)
+  // 初期値は false にし、対応環境と判明した場合のみマウント後に true にする。
+  // true から始めると非対応環境で一瞬ボタンが表示されてから消えるちらつきが起きるため。
+  const [supported, setSupported] = useState(false)
   useEffect(() => {
-    setSupported(typeof window !== 'undefined' && 'speechSynthesis' in window)
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) setSupported(true)
   }, [])
 
   const speak = () => {

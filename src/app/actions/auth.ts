@@ -52,7 +52,8 @@ export async function setMyDailyGoal(goal: number) {
   }
 
   const clamped = Math.min(Math.max(Math.round(goal), 1), 100)
-  await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ daily_goal: clamped }).eq('id', user.id)
+  if (error) throw new Error(error.message)
   revalidateStudyPaths()
 }
 
@@ -73,7 +74,8 @@ export async function setMyNewPerDay(n: number) {
   }
 
   const clamped = Math.min(Math.max(Math.round(n), 0), 100)
-  await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
+  if (error) throw new Error(error.message)
   revalidateStudyPaths()
 }
 
@@ -93,7 +95,8 @@ export async function setMyQuestionMode(mode: 'auto' | 'en_to_ja_choice' | 'ja_t
     throw new Error('保護者が設定しているため変更できません')
   }
 
-  await admin.from('profiles').update({ question_mode: mode }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ question_mode: mode }).eq('id', user.id)
+  if (error) throw new Error(error.message)
   revalidateStudyPaths()
 }
 
@@ -106,7 +109,8 @@ export async function setMyCopyHeader(header: string) {
   // 改行は1行目見出しを崩すので除去。長すぎる見出しも切り詰める。
   const cleaned = header.replace(/[\r\n]+/g, ' ').trim().slice(0, 40)
   const admin = createAdminClient()
-  await admin.from('profiles').update({ copy_header: cleaned || null }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ copy_header: cleaned || null }).eq('id', user.id)
+  if (error) throw new Error(error.message)
   revalidatePath('/home')
 }
 
@@ -117,7 +121,8 @@ export async function setNotificationChannel(channel: 'none' | 'line' | 'email' 
   if (!user) throw new Error('Unauthorized')
 
   const admin = createAdminClient()
-  await admin.from('profiles').update({ notification_channel: channel }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ notification_channel: channel }).eq('id', user.id)
+  if (error) throw new Error(error.message)
 }
 
 // 本人の表示名を変更
@@ -130,7 +135,8 @@ export async function setMyDisplayName(name: string) {
   if (!trimmed) throw new Error('名前を入力してください')
 
   const admin = createAdminClient()
-  await admin.from('profiles').update({ display_name: trimmed }).eq('id', user.id)
+  const { error } = await admin.from('profiles').update({ display_name: trimmed }).eq('id', user.id)
+  if (error) throw new Error(error.message)
 }
 
 // LINE user_id からユーザーを検索（LINE Webhook / 通知連携用）
