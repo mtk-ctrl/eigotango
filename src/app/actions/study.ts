@@ -15,7 +15,7 @@ import {
   DEFAULT_DAILY_GOAL,
   DEFAULT_NEW_PER_DAY,
 } from '@/lib/constants'
-import type { Word, UserWordProgress } from '@/types/database'
+import type { Word, UserWordProgress, QuestionModeSetting } from '@/types/database'
 import type { TodayStudyResult, StudyQuestion } from '@/types/api'
 
 // 現在のログインユーザー ID
@@ -91,6 +91,17 @@ async function getNewPerDay(studentId: string): Promise<number> {
 
   const max = await getStudentDailyMax(studentId)
   return Math.min(Math.max(profile?.new_per_day ?? DEFAULT_NEW_PER_DAY, 0), max)
+}
+
+// student の出題形式設定（既定 auto=SM-2習熟段階で自動切替）
+async function getQuestionModeSetting(studentId: string): Promise<QuestionModeSetting> {
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('question_mode')
+    .eq('id', studentId)
+    .single()
+  return (profile?.question_mode as QuestionModeSetting) ?? 'auto'
 }
 
 // 復習リマインド用のステータス（解き忘れ＝期限切れの可視化）。
@@ -473,7 +484,7 @@ export async function getStudyWords(studentId: string | undefined, mode: StudyMo
   // 候補を集めた上で、広い予備プールもフォールバックとして用意する。
   type PoolRow = { word: string; meaning: string; grade: string | null; level: string | null; is_idiom: boolean }
   const gradesNeeded = [...new Set(items.map(({ word }) => word.grade))]
-  const [gradedPools, fallbackPool] = await Promise.all([
+  const [gradedPools, fallbackPool, questionMode] = await Promise.all([
     Promise.all(gradesNeeded.map(async grade => {
       let q = admin.from('words').select('word, meaning, grade, level, is_idiom').limit(60)
       if (!premium) q = q.eq('tier', 'free')
@@ -487,14 +498,16 @@ export async function getStudyWords(studentId: string | undefined, mode: StudyMo
       const { data } = await q
       return (data ?? []) as PoolRow[]
     })(),
+    getQuestionModeSetting(sid),
   ])
   const pool: PoolItem[] = [...gradedPools.flat(), ...fallbackPool].map(p => ({
     word: p.word, meaning: p.meaning, grade: p.grade, level: p.level, isIdiom: p.is_idiom,
   }))
 
-  // 4. 各語をモード別の問題に変換（熟語はスペルを避け 4 択のみ）
+  // 4. 各語をモード別の問題に変換（設定が auto なら SM-2 習熟段階で自動切替。
+  // 熟語＋スペル固定は 4 択にフォールバック）
   const questions: StudyQuestion[] = items.map(({ word, progress }) => {
-    const mode = pickMode(progress?.repetitions ?? 0, word.is_idiom)
+    const mode = pickMode(progress?.repetitions ?? 0, word.is_idiom, questionMode)
     return buildQuestion(word, mode, pool)
   })
 

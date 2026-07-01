@@ -7,6 +7,7 @@ export type SubscriptionStatus = 'active' | 'canceled' | 'past_due'
 export type Grade = '中1' | '中2' | '中3'
 export type WordLevel = '基礎' | '標準' | '難関'
 export type NotificationChannel = 'none' | 'line' | 'email' | 'both'
+export type QuestionModeSetting = 'auto' | 'en_to_ja_choice' | 'ja_to_en_choice' | 'ja_to_en_spell'
 
 export interface Profile {
   id: string
@@ -21,6 +22,7 @@ export interface Profile {
   daily_goal: number             // 1日の復習(アクティブリコール)の上限
   new_per_day: number            // 1日に新しく学ぶ語数（新規・既定3）
   copy_header: string | null     // 単語リストのコピー時に先頭へ付ける見出し（空/NULL=なし）
+  question_mode: QuestionModeSetting  // 出題形式（既定 auto=SM-2習熟段階で自動切替）
   daily_goal_locked: boolean     // 親が設定したらロック（本人は変更不可）
   managed_by: string | null      // 親が端末上で管理する子ども（ログイン不要）の親 ID
   created_at: string

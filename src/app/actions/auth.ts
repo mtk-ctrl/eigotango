@@ -65,6 +65,25 @@ export async function setMyNewPerDay(n: number) {
   await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
 }
 
+// 出題形式を設定（親がロックしている場合は変更不可 = 親優先）
+export async function setMyQuestionMode(mode: 'auto' | 'en_to_ja_choice' | 'ja_to_en_choice' | 'ja_to_en_spell') {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('daily_goal_locked')
+    .eq('id', user.id)
+    .single()
+  if (profile?.daily_goal_locked) {
+    throw new Error('保護者が設定しているため変更できません')
+  }
+
+  await admin.from('profiles').update({ question_mode: mode }).eq('id', user.id)
+}
+
 // 単語リストのコピー時に先頭へ付ける見出しを設定（空文字＝見出しなし）
 export async function setMyCopyHeader(header: string) {
   const supabase = await createClient()
