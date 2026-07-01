@@ -1,16 +1,19 @@
 import Link from 'next/link'
 import { DailyWords } from '@/components/DailyWords'
-import type { DailyWords as DailyWordsData } from '@/app/actions/study'
+import { ReviewDailyList } from '@/components/ReviewDailyList'
+import type { DailyWords as DailyWordsData, DailyWord } from '@/app/actions/study'
 
 interface Props {
   name: string
   premium: boolean
   review: { due: number; overdue: number; newRemaining: number; reviewLimit: number; newPerDay: number }
   dailyWords: DailyWordsData
+  reviewWords: DailyWord[]
+  copyHeader: string | null
 }
 
 // 生徒（本人学習）のホーム。「新しい単語」と「復習(アクティブリコール)」を別アクションで提示。
-export function StudentHome({ name, premium, review, dailyWords }: Props) {
+export function StudentHome({ name, premium, review, dailyWords, reviewWords, copyHeader }: Props) {
   const { due, overdue, newRemaining, reviewLimit, newPerDay } = review
 
   const newToday = newPerDay > 0 ? Math.min(newPerDay, newRemaining) : 0
@@ -93,8 +96,11 @@ export function StudentHome({ name, premium, review, dailyWords }: Props) {
           <span className="text-gray-300">›</span>
         </Link>
 
-        {/* 昨日・今日・明日の単語（コピー可） */}
-        <DailyWords data={dailyWords} />
+        {/* 新しい単語（昨日・今日・明日／コピー可） */}
+        <DailyWords data={dailyWords} copyHeader={copyHeader} />
+
+        {/* 復習する単語（コピー可） */}
+        <ReviewDailyList words={reviewWords} copyHeader={copyHeader} />
       </main>
     </div>
   )

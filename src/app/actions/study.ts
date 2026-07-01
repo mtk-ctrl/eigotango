@@ -189,6 +189,34 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   return { yesterday, today, tomorrow }
 }
 
+// 今日の復習(アクティブリコール)対象の単語一覧（コピー用）。
+// 期限の来た語（known=false・next_review_date <= 今日）を復習上限まで、期限の古い順に返す。
+export async function getReviewDailyWords(studentId?: string): Promise<DailyWord[]> {
+  const sid = studentId ?? (await currentUserId())
+  if (!sid) return []
+  await authorizeStudent(sid)
+
+  const admin = createAdminClient()
+  const today = jstDate()
+  const premium = (await getStudentDailyMax(sid)) > FREE_MAX
+  const limit = await getReviewLimit(sid)
+
+  const { data: rows } = await admin
+    .from('user_word_progress')
+    .select('next_review_date, words(id, word, meaning, tier)')
+    .eq('student_id', sid)
+    .eq('known', false)
+    .lte('next_review_date', today)
+    .order('next_review_date')
+    .limit(limit)
+
+  return (rows ?? [])
+    .map(r => r.words as unknown as { id: string; word: string; meaning: string; tier: string } | null)
+    .filter((w): w is { id: string; word: string; meaning: string; tier: string } =>
+      Boolean(w) && (premium || w!.tier === 'free'))
+    .map(w => ({ id: w.id, word: w.word, meaning: w.meaning }))
+}
+
 export interface UpcomingWord {
   id: string
   word: string

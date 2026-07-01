@@ -65,6 +65,18 @@ export async function setMyNewPerDay(n: number) {
   await admin.from('profiles').update({ new_per_day: clamped }).eq('id', user.id)
 }
 
+// 単語リストのコピー時に先頭へ付ける見出しを設定（空文字＝見出しなし）
+export async function setMyCopyHeader(header: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Unauthorized')
+
+  // 改行は1行目見出しを崩すので除去。長すぎる見出しも切り詰める。
+  const cleaned = header.replace(/[\r\n]+/g, ' ').trim().slice(0, 40)
+  const admin = createAdminClient()
+  await admin.from('profiles').update({ copy_header: cleaned || null }).eq('id', user.id)
+}
+
 // 通知方法を変更（オフ / メール / LINE / 両方）
 export async function setNotificationChannel(channel: 'none' | 'line' | 'email' | 'both') {
   const supabase = await createClient()

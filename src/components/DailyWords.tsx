@@ -25,7 +25,7 @@ const EMPTY: Record<DayKey, string> = {
 }
 
 // ホームに昨日/今日/明日の単語を表示し、まとめてコピー＋「学習した」で復習に回せる。
-export function DailyWords({ data, studentId }: { data: DailyWordsData; studentId?: string }) {
+export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsData; studentId?: string; copyHeader?: string | null }) {
   const router = useRouter()
   const [tab, setTab] = useState<DayKey>('today')
   const [copied, setCopied] = useState(false)
@@ -39,7 +39,8 @@ export function DailyWords({ data, studentId }: { data: DailyWordsData; studentI
 
   const copy = async () => {
     if (words.length === 0) return
-    const text = words.map(w => `${w.word}\t${w.meaning}`).join('\n')
+    const body = words.map(w => `${w.word}\t${w.meaning}`).join('\n')
+    const text = copyHeader ? `${copyHeader}\n${body}` : body
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
