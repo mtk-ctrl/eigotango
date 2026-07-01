@@ -5,6 +5,7 @@ import { getStudentDailyMax } from '@/app/actions/study'
 import { getChildrenData } from '@/app/actions/parent'
 import { displayNameOf } from '@/lib/profile'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
+import { CopyHeaderSetting } from '@/components/CopyHeaderSetting'
 import { BottomNav } from '@/components/BottomNav'
 import { LogoutButton } from '@/components/LogoutButton'
 import { SettingsClient } from './SettingsClient'
@@ -20,7 +21,7 @@ export default async function SettingsPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, display_name, line_display_name, email, daily_goal, new_per_day, daily_goal_locked, notification_channel, line_user_id')
+    .select('role, display_name, line_display_name, email, daily_goal, new_per_day, copy_header, daily_goal_locked, notification_channel, line_user_id')
     .eq('id', user.id)
     .single()
 
@@ -67,6 +68,9 @@ export default async function SettingsPage() {
           locked={profile?.daily_goal_locked ?? false}
           max={max}
         />
+
+        {/* 単語リストのコピー時に付ける見出し */}
+        <CopyHeaderSetting current={profile?.copy_header ?? null} />
 
         {/* 通知方法・アカウント（クライアント） */}
         <SettingsClient

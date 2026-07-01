@@ -20,6 +20,7 @@ export interface Profile {
   timezone: string
   daily_goal: number             // 1日の復習(アクティブリコール)の上限
   new_per_day: number            // 1日に新しく学ぶ語数（新規・既定3）
+  copy_header: string | null     // 単語リストのコピー時に先頭へ付ける見出し（空/NULL=なし）
   daily_goal_locked: boolean     // 親が設定したらロック（本人は変更不可）
   managed_by: string | null      // 親が端末上で管理する子ども（ログイン不要）の親 ID
   created_at: string
