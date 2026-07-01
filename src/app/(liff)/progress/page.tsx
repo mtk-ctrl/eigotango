@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getStudentDailyMax } from '@/app/actions/study'
+import { FREE_DAILY_MAX } from '@/lib/constants'
 import { jstDate } from '@/lib/date'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
@@ -47,7 +48,7 @@ export default async function ProgressPage({
   const db = viewingChild ? createAdminClient() : supabase
 
   // 利用可能な語の範囲（無料=基本100語のみ / プレミアム=全語）で分母を出す
-  const premium = (await getStudentDailyMax(studentId)) > 20
+  const premium = (await getStudentDailyMax(studentId)) > FREE_DAILY_MAX
 
   const sevenDaysAgo = jstDate(-6)
 
@@ -57,7 +58,7 @@ export default async function ProgressPage({
   const [progressRes, wordsRes, sessionsRes] = await Promise.all([
     db
       .from('user_word_progress')
-      .select('repetitions, word:words(grade)')
+      .select('repetitions, total_reviews, correct_count, known, word:words(word, meaning, grade)')
       .eq('student_id', studentId),
     wordsQuery,
     db
@@ -77,11 +78,24 @@ export default async function ProgressPage({
   const totalWords = allWords.length
 
   const GRADES = ['中1', '中2', '中3'] as const
+  type ProgressWord = { word: string; meaning: string; grade: string | null } | null
   const gradeStats = GRADES.map(grade => ({
     grade,
-    learned: progress.filter(p => (p.word as unknown as { grade: string | null } | null)?.grade === grade).length,
+    learned: progress.filter(p => (p.word as unknown as ProgressWord)?.grade === grade).length,
     total: allWords.filter(w => w.grade === grade).length,
   }))
+
+  // にがてな単語: 2回以上出題されて正答率が6割未満の語（低い順に最大8件）。
+  // 「どこでつまずいているか」を本人・親がひと目で分かるようにする。
+  const weakWords = progress
+    .filter(p => !p.known && p.total_reviews >= 2 && p.correct_count / p.total_reviews < 0.6)
+    .map(p => ({
+      rate: Math.round((p.correct_count / p.total_reviews) * 100),
+      word: p.word as unknown as ProgressWord,
+    }))
+    .filter((w): w is { rate: number; word: NonNullable<ProgressWord> } => Boolean(w.word))
+    .sort((a, b) => a.rate - b.rate)
+    .slice(0, 8)
 
   return (
     <div className={`min-h-dvh bg-gray-50 ${viewingChild ? 'pb-8' : 'pb-24'}`}>
@@ -144,6 +158,25 @@ export default async function ProgressPage({
             ))}
           </div>
         </div>
+
+        {/* にがてな単語（正答率が低い語） */}
+        {weakWords.length > 0 && (
+          <div className="rounded-2xl bg-white p-5 shadow-sm">
+            <h2 className="mb-1 text-sm font-bold text-gray-700">💪 にがてな単語</h2>
+            <p className="mb-3 text-xs text-gray-400">何度かまちがえている単語です。復習でくり返し出題されます。</p>
+            <div className="flex flex-col">
+              {weakWords.map(({ word, rate }) => (
+                <div key={word.word} className="flex items-baseline justify-between gap-3 border-b border-gray-50 py-2 last:border-0">
+                  <div className="min-w-0">
+                    <span className="font-bold text-gray-800">{word.word}</span>
+                    <span className="ml-2 text-sm text-gray-500">{word.meaning}</span>
+                  </div>
+                  <span className="shrink-0 text-xs font-bold text-orange-500">正答率 {rate}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* 直近7日間 */}
         <div className="rounded-2xl bg-white p-5 shadow-sm">

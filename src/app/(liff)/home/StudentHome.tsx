@@ -10,10 +10,11 @@ interface Props {
   dailyWords: DailyWordsData
   reviewWords: DailyWord[]
   copyHeader: string | null
+  streak: number
 }
 
 // 生徒（本人学習）のホーム。「新しい単語」と「復習(アクティブリコール)」を別アクションで提示。
-export function StudentHome({ name, premium, review, dailyWords, reviewWords, copyHeader }: Props) {
+export function StudentHome({ name, premium, review, dailyWords, reviewWords, copyHeader, streak }: Props) {
   const { due, overdue, newRemaining, reviewLimit, newPerDay } = review
 
   const newToday = newPerDay > 0 ? Math.min(newPerDay, newRemaining) : 0
@@ -25,10 +26,17 @@ export function StudentHome({ name, premium, review, dailyWords, reviewWords, co
       {/* ヘッダー */}
       <header className="px-5 pt-12 pb-2">
         <p className="text-sm text-gray-400">こんにちは</p>
-        <h1 className="text-2xl font-bold text-gray-800">
-          {name ? `${name}さん` : 'ようこそ'}
-          {premium && <span className="ml-2 align-middle text-xs text-yellow-500">★ プレミアム</span>}
-        </h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-bold text-gray-800">
+            {name ? `${name}さん` : 'ようこそ'}
+            {premium && <span className="ml-2 align-middle text-xs text-yellow-500">★ プレミアム</span>}
+          </h1>
+          {streak > 0 && (
+            <span className="shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-bold text-orange-500">
+              🔥 {streak}日連続
+            </span>
+          )}
+        </div>
       </header>
 
       <main className="px-5 mt-4 flex flex-col gap-4">
@@ -36,7 +44,9 @@ export function StudentHome({ name, premium, review, dailyWords, reviewWords, co
           <div className="rounded-3xl bg-white p-6 shadow-sm text-center">
             <p className="text-5xl">🌟</p>
             <p className="mt-2 text-lg font-bold text-gray-800">今日のぶんは完了！</p>
-            <p className="mt-1 text-sm text-gray-500">また明日チャレンジしよう</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {streak > 1 ? `🔥 ${streak}日連続！ また明日チャレンジしよう` : 'また明日チャレンジしよう'}
+            </p>
           </div>
         ) : (
           <>

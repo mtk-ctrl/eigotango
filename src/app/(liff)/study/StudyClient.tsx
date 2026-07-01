@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ProgressBar } from '@/components/study/ProgressBar'
@@ -37,34 +37,90 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
   const [qualities, setQualities] = useState<number[]>([])
   const [marking, setMarking] = useState(false)
 
-  const current = questions[index]
-  const isLast = index + 1 >= questions.length
+  // まちがい直し: 本編でまちがえた問題を最後にもう一度出す（全部正解するまで繰り返し）。
+  // 直しの回答は SM-2 に記録しない（本編の回答だけが成績・復習間隔に反映される）。
+  const [retryQueue, setRetryQueue] = useState<StudyQuestion[]>([])
+  const [retryIndex, setRetryIndex] = useState(0)
+  const [inRetry, setInRetry] = useState(false)
+
+  // 連打・二重タップで回答が二重記録されたり問題が飛んだりしないよう、
+  // フェーズ遷移をレンダリングを待たず同期的にガードする
+  const phaseRef = useRef<Phase>('input')
+  const setPhaseSafe = useCallback((p: Phase) => {
+    phaseRef.current = p
+    setPhase(p)
+  }, [])
+
+  const current = inRetry ? retryQueue[retryIndex] : questions[index]
+  // 本編の最後でもまちがい直しが残っていれば「次へ」（完了はまちがい直しの後）
+  const isLast = inRetry
+    ? retryIndex + 1 >= retryQueue.length
+    : index + 1 >= questions.length && retryQueue.length === 0
+
+  // 完了画面用: 今日まちがえた単語（重複なし）
+  const wrongWords = [...new Map(retryQueue.map(q => [q.wordId, q.word])).values()]
 
   const handleSubmit = useCallback(async (input: string) => {
-    if (!current) return
+    if (!current || phaseRef.current !== 'input') return
     const { type, quality } = checkAnswer(current, input)
     setLastResult({ type, input })
+    setPhaseSafe('result')
+    if (type === 'wrong') {
+      // まちがえた問題は後ろに積み直す（まちがい直し中も、正解するまで繰り返す）
+      setRetryQueue(prev => [...prev, current])
+    }
+    if (inRetry) return  // 直しの回答は記録しない
+
     setQualities(prev => [...prev, quality])
-    setPhase('result')
     try {
       await recordAnswer({ studentId, sessionId, wordId: current.wordId, quality })
     } catch {
       // 結果表示は維持しつつ、記録漏れの可能性をユーザーに知らせる
       alert('回答の保存に失敗しました。通信環境を確認してください。この単語は記録されていない可能性があります。')
     }
-  }, [current, sessionId, studentId])
+  }, [current, inRetry, sessionId, studentId, setPhaseSafe])
 
   const handleNext = useCallback(async () => {
-    if (isLast) {
-      await completeSession(studentId, sessionId)
-      setPhase('complete')
-    } else {
-      setIndex(i => i + 1)
-      setPhase('input')
+    if (phaseRef.current !== 'result') return
+
+    if (!inRetry) {
+      if (index + 1 < questions.length) {
+        setIndex(i => i + 1)
+        setPhaseSafe('input')
+        setLastResult(null)
+        setMarking(false)
+        return
+      }
+      // 本編終了。セッション完了（成績確定・親通知）はここで行い、まちがい直しはおまけ扱い。
+      // 完了処理が通信断で失敗しても回答自体は保存済みなので、画面は先へ進める。
+      phaseRef.current = 'complete'
+      try {
+        await completeSession(studentId, sessionId)
+      } catch (e) {
+        console.error('[StudyClient] completeSession failed:', e)
+      }
+      if (retryQueue.length > 0) {
+        setInRetry(true)
+        setRetryIndex(0)
+        setLastResult(null)
+        setMarking(false)
+        setPhaseSafe('input')
+      } else {
+        setPhaseSafe('complete')
+      }
+      return
+    }
+
+    // まちがい直し中
+    if (retryIndex + 1 < retryQueue.length) {
+      setRetryIndex(i => i + 1)
+      setPhaseSafe('input')
       setLastResult(null)
       setMarking(false)
+    } else {
+      setPhaseSafe('complete')
     }
-  }, [isLast, sessionId, studentId, qualities, questions.length])
+  }, [inRetry, index, questions.length, retryIndex, retryQueue.length, sessionId, studentId, setPhaseSafe])
 
   // 正解した語を「もう覚えてる」にして今後の出題対象から外し、次へ進む
   const handleMarkKnown = useCallback(async () => {
@@ -82,14 +138,14 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
   }, [current, marking, studentId, handleNext])
 
   const handleQuit = useCallback(() => {
-    if (index === 0 && phase === 'input') {
+    if (index === 0 && phase === 'input' && !inRetry) {
       router.push(returnTo)
       return
     }
     if (confirm('学習を中断しますか？\nここまでの回答は保存されています。')) {
       router.push(returnTo)
     }
-  }, [router, returnTo, index, phase])
+  }, [router, returnTo, index, phase, inRetry])
 
   if (questions.length === 0) {
     return (
@@ -127,7 +183,26 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
             <span className="font-bold text-green-600">{correct}問</span> 正解
           </p>
           <p className="text-gray-400 text-sm mt-1">正答率 {pct}%</p>
+          {wrongWords.length > 0 && (
+            <p className="text-gray-500 text-sm mt-1">まちがい直しもクリア！ 💪</p>
+          )}
         </div>
+
+        {/* 今日まちがえた単語のふりかえり（復習にくり返し出てくる） */}
+        {wrongWords.length > 0 && (
+          <div className="w-full max-w-xs rounded-2xl bg-white border border-gray-100 p-4 text-left shadow-sm">
+            <p className="text-xs font-bold text-gray-500 mb-2">今日まちがえた単語（また復習に出るよ）</p>
+            <div className="max-h-40 overflow-y-auto">
+              {wrongWords.map(w => (
+                <div key={w.id} className="flex items-baseline justify-between gap-3 border-b border-gray-50 py-1.5 last:border-0">
+                  <span className="font-bold text-gray-800">{w.word}</span>
+                  <span className="truncate text-right text-sm text-gray-500">{w.meaning}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-3 w-full max-w-xs">
           <Link href={recordsHref} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
             学習記録を見る
@@ -155,10 +230,19 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
           ← やめる
         </button>
         <div className="flex-1">
-          <ProgressBar current={index + 1} total={questions.length} />
+          {inRetry ? (
+            <ProgressBar current={retryIndex + 1} total={retryQueue.length} />
+          ) : (
+            <ProgressBar current={index + 1} total={questions.length} />
+          )}
         </div>
       </div>
 
+      {inRetry && (
+        <p className="text-xs font-bold text-orange-500 -mt-2">
+          🔁 まちがい直し — 全部正解でゴール！
+        </p>
+      )}
       {studentName && (
         <p className="text-xs text-gray-400 -mt-2">{studentName}さんの学習</p>
       )}
@@ -167,8 +251,8 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
 
       {phase === 'input' && (
         current.mode === 'ja_to_en_spell'
-          ? <SpellingInput key={index} onSubmit={handleSubmit} />
-          : <ChoiceInput key={index} choices={current.choices} onSubmit={handleSubmit} />
+          ? <SpellingInput key={`${inRetry ? 'r' : 'm'}-${inRetry ? retryIndex : index}`} onSubmit={handleSubmit} />
+          : <ChoiceInput key={`${inRetry ? 'r' : 'm'}-${inRetry ? retryIndex : index}`} choices={current.choices} onSubmit={handleSubmit} />
       )}
 
       {phase === 'result' && lastResult && (
@@ -177,7 +261,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
           result={lastResult}
           onNext={handleNext}
           isLast={isLast}
-          onMarkKnown={handleMarkKnown}
+          onMarkKnown={lastResult.type === 'correct' && !inRetry ? handleMarkKnown : undefined}
           marking={marking}
         />
       )}

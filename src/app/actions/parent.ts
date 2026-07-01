@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { jstDate } from '@/lib/date'
+import { calcStreak } from '@/lib/streak'
 import { displayNameOf } from '@/lib/profile'
 import { parentOwnsChild } from '@/lib/relations'
 import { MANAGED_EMAIL_DOMAIN, PREMIUM_DAILY_MAX, DEFAULT_DAILY_GOAL } from '@/lib/constants'
@@ -242,20 +243,6 @@ export interface ChildData {
   todaySession: { total_words: number; correct_words: number; completed_at: string | null } | null
   totalLearned: number
   streak: number   // 連続学習日数（今日 or 昨日を起点に完了日が続いている数）
-}
-
-// 完了済みセッション日付の集合から、今日/昨日を起点とした連続日数を計算
-function calcStreak(dateSet: Set<string>, today: string): number {
-  const iso = (d: Date) => d.toISOString().split('T')[0]
-  const cur = new Date(today + 'T00:00:00Z')
-  // 今日まだ未完了でも、昨日まで続いていれば連続として数える
-  if (!dateSet.has(iso(cur))) cur.setUTCDate(cur.getUTCDate() - 1)
-  let streak = 0
-  while (dateSet.has(iso(cur))) {
-    streak++
-    cur.setUTCDate(cur.getUTCDate() - 1)
-  }
-  return streak
 }
 
 // 親の子どもリストと今日のセッション情報を取得

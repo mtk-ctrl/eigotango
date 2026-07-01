@@ -1,23 +1,20 @@
 'use client'
 
 import { useState } from 'react'
+import { copyText } from '@/lib/clipboard'
 import type { DailyWord } from '@/app/actions/study'
 
 // 今日の復習(アクティブリコール)対象の単語一覧。コピーできる（先頭に見出しを付けられる）。
 export function ReviewDailyList({ words, copyHeader }: { words: DailyWord[]; copyHeader?: string | null }) {
-  const [copied, setCopied] = useState(false)
+  const [copied, setCopied] = useState<'ok' | 'ng' | null>(null)
 
   const copy = async () => {
     if (words.length === 0) return
     const body = words.map(w => `${w.word}\t${w.meaning}`).join('\n')
     const text = copyHeader ? `${copyHeader}\n${body}` : body
-    try {
-      await navigator.clipboard.writeText(text)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    } catch {
-      // クリップボード不可の環境は無視
-    }
+    const ok = await copyText(text)
+    setCopied(ok ? 'ok' : 'ng')  // 失敗も表示する（黙って何も起きないと押せたか分からない）
+    setTimeout(() => setCopied(null), 2000)
   }
 
   return (
@@ -44,7 +41,7 @@ export function ReviewDailyList({ words, copyHeader }: { words: DailyWord[]; cop
             onClick={copy}
             className="mt-3 w-full rounded-xl bg-gray-100 py-2.5 text-sm font-bold text-gray-700 active:scale-95 transition-transform"
           >
-            {copied ? '✓ コピーしました' : '📋 コピー'}
+            {copied === 'ok' ? '✓ コピーしました' : copied === 'ng' ? 'コピーできませんでした' : '📋 コピー'}
           </button>
         </>
       )}
