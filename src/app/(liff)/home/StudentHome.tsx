@@ -20,6 +20,8 @@ export function StudentHome({ name, premium, review, dailyWords, reviewWords, co
   const newToday = newPerDay > 0 ? Math.min(newPerDay, newRemaining) : 0
   const reviewToday = Math.min(reviewLimit, due)
   const allDone = newToday === 0 && reviewToday === 0
+  // 今日おぼえた語数（設定数を超えたぶんも積み上がる）— やった実績を常に見せる
+  const doneToday = dailyWords.todayDone.length
 
   return (
     <div className="min-h-dvh bg-gray-50 pb-24">
@@ -69,27 +71,32 @@ export function StudentHome({ name, premium, review, dailyWords, reviewWords, co
               </Link>
             )}
 
-            {/* 新しい単語 */}
+            {/* 新しい単語。今日すでにやった分があれば積み上げを見せて「もっとやる」を後押し */}
             {newToday > 0 && (
               <Link
                 href="/study"
                 className="block rounded-3xl p-6 shadow-sm active:scale-[0.99] transition-transform bg-green-500 text-white"
               >
                 <p className="text-sm/relaxed opacity-90">📚 新しい単語</p>
-                <p className="text-2xl font-bold mt-1">今日は{newToday}語</p>
+                <p className="text-2xl font-bold mt-1">
+                  {doneToday > 0 ? `つぎの${newToday}語にちょうせん` : `今日は${newToday}語`}
+                </p>
+                {doneToday > 0 && (
+                  <p className="mt-0.5 text-sm opacity-90">🔥 今日はもう{doneToday}語おぼえた！</p>
+                )}
                 <span className="inline-flex items-center gap-1 mt-4 rounded-full bg-white/20 px-4 py-2 text-sm font-bold">
-                  はじめる →
+                  {doneToday > 0 ? 'つづける →' : 'はじめる →'}
                 </span>
               </Link>
             )}
           </>
         )}
 
-        {/* ミニ情報 */}
+        {/* ミニ情報: 「今日おぼえた」は設定数を超えたぶんも積み上がる（実績の可視化） */}
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-white p-4 shadow-sm">
-            <p className="text-2xl font-bold text-gray-800">{newPerDay}<span className="text-sm font-normal text-gray-400">語</span></p>
-            <p className="mt-0.5 text-xs text-gray-400">新しい単語/日</p>
+            <p className="text-2xl font-bold text-green-600">{doneToday}<span className="text-sm font-normal text-gray-400">語</span></p>
+            <p className="mt-0.5 text-xs text-gray-400">✅ 今日おぼえた</p>
           </div>
           <div className="rounded-2xl bg-white p-4 shadow-sm">
             <p className="text-2xl font-bold text-gray-800">{due}<span className="text-sm font-normal text-gray-400">語</span></p>

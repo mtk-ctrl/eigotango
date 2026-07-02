@@ -57,6 +57,7 @@ export default async function ReviewPage({
       studentName={studentName}
       returnTo={returnTo}
       recordsHref={recordsHref}
+      continueHref={child && child !== user.id ? `/study?child=${child}` : '/study'}
       showLogout={showLogout}
       mode="review"
     />
