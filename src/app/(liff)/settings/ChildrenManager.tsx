@@ -89,7 +89,7 @@ export function ChildrenManager({ children, premium }: { children: ChildData[]; 
                 </p>
                 <button
                   onClick={() => setEditing(editing === child.id ? null : child.id)}
-                  className="text-xs font-bold text-green-600 underline"
+                  className="shrink-0 rounded-xl bg-green-500 px-4 py-2.5 text-sm font-bold text-white active:scale-95 transition-transform"
                 >
                   {editing === child.id ? '閉じる' : '編集'}
                 </button>

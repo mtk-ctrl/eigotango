@@ -8,6 +8,8 @@ import { displayNameOf } from '@/lib/profile'
 import { SelfGoalSetting } from '@/components/SelfGoalSetting'
 import { CopyHeaderSetting } from '@/components/CopyHeaderSetting'
 import { QuestionModePicker } from '@/components/QuestionModePicker'
+import { QUESTION_MODE_OPTIONS } from '@/components/QuestionModeChoices'
+import { CollapsibleSettingsCard } from '@/components/CollapsibleSettingsCard'
 import { BottomNav } from '@/components/BottomNav'
 import { LogoutButton } from '@/components/LogoutButton'
 import { SettingsClient } from './SettingsClient'
@@ -33,6 +35,14 @@ export default async function SettingsPage() {
   const displayName = displayNameOf(profile)
   const children = isParent ? await getChildrenData() : []
 
+  const newPerDay = profile?.new_per_day ?? 3
+  const dailyGoal = profile?.daily_goal ?? 10
+  const locked = profile?.daily_goal_locked ?? false
+  const questionModeLabel = QUESTION_MODE_OPTIONS
+    .find(o => o.value === ((profile?.question_mode as QuestionModeSetting) ?? 'auto'))?.label ?? '自動'
+  const selfSummary = `1日 新規${newPerDay}語・復習上限${dailyGoal}語・出題形式: ${questionModeLabel}`
+    + (locked ? '（保護者が設定）' : '')
+
   return (
     <div className="min-h-dvh bg-gray-50 pb-24">
       {/* ヘッダー */}
@@ -45,9 +55,19 @@ export default async function SettingsPage() {
         {/* こども管理（親のみ）: 追加・編集・連携・削除 */}
         {isParent && <ChildrenManager children={children} premium={premium} />}
 
-        {/* 学習: 出題量・出題形式・スキップ・コピー見出しをひとまとめに */}
+        {/* 学習: 出題量・出題形式・スキップ・コピー見出しをひとまとめに。
+            親アカウントでは「お子さまの学習設定」（上のこども管理）と混同しないよう、
+            ここはあくまで「自分（ログイン中の本人）」の設定であることを明示する。
+            お子さまの設定カードと同じく、値は要約だけ常に見せ「編集」を押したときだけ開く。 */}
         <section className="flex flex-col gap-3">
-          <h2 className="px-1 text-xs font-bold tracking-wide text-gray-400">学習</h2>
+          <h2 className="px-1 text-xs font-bold tracking-wide text-gray-400">
+            {isParent ? '🧑 自分の学習設定' : '学習'}
+          </h2>
+          {isParent && (
+            <p className="px-1 -mt-2 text-[11px] text-gray-400">
+              保護者ご自身が学習する場合の設定です。お子さまの設定は上の「お子さまの学習設定」で行います。
+            </p>
+          )}
 
           <Link
             href="/words"
@@ -60,23 +80,15 @@ export default async function SettingsPage() {
             <span className="text-gray-300">›</span>
           </Link>
 
-          <SelfGoalSetting
-            kind="new"
-            current={profile?.new_per_day ?? 3}
-            locked={profile?.daily_goal_locked ?? false}
-            max={max}
-          />
-          <SelfGoalSetting
-            kind="review"
-            current={profile?.daily_goal ?? 10}
-            locked={profile?.daily_goal_locked ?? false}
-            max={max}
-          />
-          <QuestionModePicker
-            current={(profile?.question_mode as QuestionModeSetting) ?? 'auto'}
-            locked={profile?.daily_goal_locked ?? false}
-          />
-          <CopyHeaderSetting current={profile?.copy_header ?? null} />
+          <CollapsibleSettingsCard icon="📚" title="単語数・出題形式" summary={selfSummary}>
+            <SelfGoalSetting kind="new" current={newPerDay} locked={locked} max={max} />
+            <SelfGoalSetting kind="review" current={dailyGoal} locked={locked} max={max} />
+            <QuestionModePicker
+              current={(profile?.question_mode as QuestionModeSetting) ?? 'auto'}
+              locked={locked}
+            />
+            <CopyHeaderSetting current={profile?.copy_header ?? null} />
+          </CollapsibleSettingsCard>
         </section>
 
         {/* 通知・アカウント */}
