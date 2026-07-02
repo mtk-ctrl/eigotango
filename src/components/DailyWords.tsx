@@ -25,8 +25,31 @@ const EMPTY: Record<DayKey, string> = {
   tomorrow: '明日学ぶ予定の単語はありません。',
 }
 
+function WordRows({ words }: { words: DailyWord[] }) {
+  return (
+    <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
+      {words.map(w => (
+        <div
+          key={w.id}
+          className="flex items-baseline justify-between gap-3 border-b border-gray-50 px-3 py-2 last:border-0"
+        >
+          <span className="font-bold text-gray-800">{w.word}</span>
+          <span className="truncate text-right text-sm text-gray-500">{w.meaning}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ホームに昨日/今日/明日の単語を表示し、まとめてコピー＋「学習した」で復習に回せる。
-export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsData; studentId?: string; copyHeader?: string | null }) {
+// 今日タブは「今日おぼえた語（積み上げ）」と「これから学ぶ語」を分けて表示する。
+// title で誰のリストかを明示できる（親ホームで自分/子どもを区別するため）。
+export function DailyWords({ data, studentId, copyHeader, title = '単語リスト' }: {
+  data: DailyWordsData
+  studentId?: string
+  copyHeader?: string | null
+  title?: string
+}) {
   const router = useRouter()
   const [tab, setTab] = useState<DayKey>('today')
   const [copied, setCopied] = useState<'ok' | 'ng' | null>(null)
@@ -35,8 +58,22 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const words: DailyWord[] = data[tab].filter(w => !removed.has(w.id))
+  // 「学習した」で消した語は即座に done 側へ積む（体感の積み上げを途切れさせない）。
+  // 明日タブから先取りで学習した語も「今日おぼえた」に入る。
+  const todayDone: DailyWord[] = [
+    ...data.today.filter(w => removed.has(w.id)),
+    ...data.tomorrow.filter(w => removed.has(w.id)),
+    ...data.todayDone,
+  ]
   // 昨日は「学習済みの記録」なのでマーク不要。今日・明日のみ学習済みにできる。
   const canMark = tab !== 'yesterday'
+
+  // タブのカウント: 今日は「やったぶん＋これからのぶん」を出して積み上げを見せる
+  const tabCount = (key: DayKey): string => {
+    const remaining = data[key].filter(w => !removed.has(w.id)).length
+    if (key !== 'today') return String(remaining)
+    return todayDone.length > 0 ? `✓${todayDone.length}+${remaining}` : String(remaining)
+  }
 
   const copy = async () => {
     if (words.length === 0) return
@@ -66,9 +103,11 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
     timer.current = setTimeout(() => router.refresh(), 600)
   }
 
+  const showTodayDone = tab === 'today' && todayDone.length > 0
+
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-3 text-sm font-bold text-gray-700">単語リスト</h2>
+      <h2 className="mb-3 text-sm font-bold text-gray-700">{title}</h2>
 
       {/* 昨日 / 今日 / 明日 */}
       <div className="mb-2 flex gap-2">
@@ -82,29 +121,32 @@ export function DailyWords({ data, studentId, copyHeader }: { data: DailyWordsDa
           >
             {d.label}
             <span className={`ml-1 text-xs font-normal ${tab === d.key ? 'text-white/80' : 'text-gray-400'}`}>
-              {data[d.key].filter(w => !removed.has(w.id)).length}
+              {tabCount(d.key)}
             </span>
           </button>
         ))}
       </div>
 
+      {/* 今日おぼえた語（積み上げ）。設定数を超えてがんばった分もここに増えていく */}
+      {showTodayDone && (
+        <div className="mb-3">
+          <p className="mb-1 text-xs font-bold text-green-600">✅ 今日おぼえた {todayDone.length}語</p>
+          <WordRows words={todayDone} />
+        </div>
+      )}
+
       {words.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-400">{EMPTY[tab]}</p>
+        <p className="py-6 text-center text-sm text-gray-400">
+          {tab === 'today' && todayDone.length > 0
+            ? '🎉 今日の新しい単語はぜんぶ学習ずみ！'
+            : EMPTY[tab]}
+        </p>
       ) : (
         <>
           {/* タブの内容説明（文言と表示を一致させる。空のときは出さない） */}
+          {showTodayDone && <p className="mb-1 text-xs font-bold text-gray-500">📖 これから学ぶ {words.length}語</p>}
           <p className="mb-3 text-xs text-gray-400">{DESC[tab]}</p>
-          <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100">
-            {words.map(w => (
-              <div
-                key={w.id}
-                className="flex items-baseline justify-between gap-3 border-b border-gray-50 px-3 py-2 last:border-0"
-              >
-                <span className="font-bold text-gray-800">{w.word}</span>
-                <span className="truncate text-right text-sm text-gray-500">{w.meaning}</span>
-              </div>
-            ))}
-          </div>
+          <WordRows words={words} />
           <div className="mt-3 flex gap-2">
             <button
               onClick={copy}

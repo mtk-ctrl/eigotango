@@ -34,9 +34,24 @@ export default async function HomePage() {
       getDailyWords(user.id),
       getReviewDailyWords(user.id),
     ])
+    // 子どもの単語リストも親が見られるようにする（どれが誰のリストか分かるよう名前付きで表示）
+    const childWordLists = await Promise.all(
+      children.map(async c => {
+        const [daily, review] = await Promise.all([getDailyWords(c.id), getReviewDailyWords(c.id)])
+        return { id: c.id, name: c.name, daily, review }
+      }),
+    )
     return (
       <>
-        <ParentHome name={name} premium={subscription?.plan === 'premium'} children={children} dailyWords={dailyWords} reviewWords={reviewWords} copyHeader={copyHeader} />
+        <ParentHome
+          name={name}
+          premium={subscription?.plan === 'premium'}
+          children={children}
+          childWordLists={childWordLists}
+          dailyWords={dailyWords}
+          reviewWords={reviewWords}
+          copyHeader={copyHeader}
+        />
         <BottomNav role="parent" />
       </>
     )

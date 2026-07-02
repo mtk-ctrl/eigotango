@@ -4,10 +4,18 @@ import { DailyWords } from '@/components/DailyWords'
 import { ReviewDailyList } from '@/components/ReviewDailyList'
 import type { DailyWords as DailyWordsData, DailyWord } from '@/app/actions/study'
 
+interface ChildWordList {
+  id: string
+  name: string
+  daily: DailyWordsData
+  review: DailyWord[]
+}
+
 interface Props {
   name: string
   premium: boolean
   children: ChildData[]
+  childWordLists: ChildWordList[]
   dailyWords: DailyWordsData
   reviewWords: DailyWord[]
   copyHeader: string | null
@@ -15,7 +23,7 @@ interface Props {
 
 // 親のホーム。親が一番知りたい「今日やった？／続いてる？／何をすればいい？」を
 // 各子カードの主役に置く。追加・編集などの管理は「せってい」に集約。
-export function ParentHome({ name, premium, children, dailyWords, reviewWords, copyHeader }: Props) {
+export function ParentHome({ name, premium, children, childWordLists, dailyWords, reviewWords, copyHeader }: Props) {
   const today = new Date().toLocaleDateString('ja-JP', {
     timeZone: 'Asia/Tokyo', month: 'long', day: 'numeric', weekday: 'short',
   })
@@ -93,10 +101,27 @@ export function ParentHome({ name, premium, children, dailyWords, reviewWords, c
           </div>
         </section>
 
-        {/* 昨日・今日・明日の単語（自分の学習・コピー可） */}
+        {/* こどもの単語リスト（誰のリストか名前で明示）。端末管理の子は「学習した」も親が押せる */}
+        {childWordLists.map(c => (
+          <section key={c.id} className="flex flex-col gap-4">
+            <DailyWords
+              data={c.daily}
+              studentId={c.id}
+              copyHeader={copyHeader}
+              title={`👶 ${c.name}さんの単語リスト`}
+            />
+            <ReviewDailyList
+              words={c.review}
+              copyHeader={copyHeader}
+              title={`🔁 ${c.name}さんの復習する単語`}
+            />
+          </section>
+        ))}
+
+        {/* 自分の単語（コピー可）。こどもの分と混ざらないよう「自分の」と明示 */}
         <section className="flex flex-col gap-4">
-          <DailyWords data={dailyWords} copyHeader={copyHeader} />
-          <ReviewDailyList words={reviewWords} copyHeader={copyHeader} />
+          <DailyWords data={dailyWords} copyHeader={copyHeader} title="🧑 自分の単語リスト" />
+          <ReviewDailyList words={reviewWords} copyHeader={copyHeader} title="🔁 自分の復習する単語" />
         </section>
       </div>
     </div>
