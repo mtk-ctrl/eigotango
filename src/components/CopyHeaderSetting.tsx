@@ -12,24 +12,31 @@ export function CopyHeaderSetting({ current, noCard = false }: { current: string
   const [text, setText] = useState(current ?? '今日の単語')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
   const cardClass = noCard ? '' : 'bg-white rounded-2xl p-5 shadow-sm'
 
-  const save = async (header: string) => {
+  // 保存失敗時は onError で表示状態を元へ戻す（黙って食い違わせない）
+  const save = async (header: string, onError?: () => void) => {
     setSaving(true)
     setSaved(false)
+    setError('')
     try {
       await setMyCopyHeader(header)
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
       router.refresh()
+    } catch (e) {
+      onError?.()
+      setError(e instanceof Error ? e.message : '保存に失敗しました。時間をおいて再試行してください。')
     } finally {
       setSaving(false)
     }
   }
 
   const toggle = (on: boolean) => {
+    const prev = enabled
     setEnabled(on)
-    save(on ? text.trim() || '今日の単語' : '')
+    save(on ? text.trim() || '今日の単語' : '', () => setEnabled(prev))
   }
 
   return (
@@ -40,6 +47,7 @@ export function CopyHeaderSetting({ current, noCard = false }: { current: string
         {saved && <span className="text-xs text-green-500 font-normal">（保存しました）</span>}
       </h2>
       <p className="text-xs text-gray-400 mb-3">単語リストをコピーすると、1行目にこの言葉が入ります。</p>
+      {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
 
       {/* あり / なし */}
       <div className="flex gap-2">

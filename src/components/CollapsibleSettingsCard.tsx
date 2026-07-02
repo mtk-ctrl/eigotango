@@ -31,7 +31,9 @@ export function CollapsibleSettingsCard({ icon, title, summary, children }: Prop
       </div>
 
       {open && (
-        <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4">
+        // noCard で枠なし描画される設定項目が直接並ぶため、項目間に区切り線を入れて
+        // どこからどこまでが1つの設定かを分かりやすくする
+        <div className="mt-4 flex flex-col divide-y divide-gray-100 border-t border-gray-100 [&>*]:py-4 [&>*:last-child]:pb-0">
           {children}
         </div>
       )}

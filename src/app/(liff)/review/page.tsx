@@ -46,10 +46,11 @@ export default async function ReviewPage({
   }
 
   return (
-    // key: 対象の生徒が変わったら（自分⇔子の切替は同一ルートの searchParams 違いで
-    // コンポーネントが使い回されるため）マウントし直して学習中の state を確実にリセットする
+    // key: 対象の生徒 or セッション（日付）が変わったらマウントし直して学習中の state を
+    // 確実にリセットする（自分⇔子の切替は同一ルートの searchParams 違いで使い回されるため。
+    // 日またぎで開き直したときも sessionId が変わるので古い問題セットが残らない）
     <StudyClient
-      key={studentId}
+      key={`${studentId}-${sessionId}`}
       questions={questions}
       sessionId={sessionId}
       studentId={studentId}

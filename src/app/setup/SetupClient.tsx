@@ -1,14 +1,21 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { setUserRole } from '@/app/actions/auth'
 
 export function SetupClient() {
   const [isPending, startTransition] = useTransition()
+  const [error, setError] = useState('')
 
   function select(role: 'student' | 'parent') {
+    setError('')
     startTransition(async () => {
-      await setUserRole(role)
+      try {
+        await setUserRole(role)
+      } catch (e) {
+        // 初回設定はここで詰まると先へ進めないので、失敗を必ず表示して再試行できるようにする
+        setError(e instanceof Error ? e.message : '設定に失敗しました。もう一度お試しください。')
+      }
     })
   }
 
@@ -35,6 +42,7 @@ export function SetupClient() {
         >
           👨‍👩‍👧 保護者（親）
         </button>
+        {error && <p className="text-center text-sm text-red-500">{error}</p>}
       </div>
     </div>
   )

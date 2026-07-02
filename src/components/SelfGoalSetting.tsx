@@ -24,6 +24,7 @@ export function SelfGoalSetting({ kind, current, locked, max, noCard = false }: 
   const [value, setValue] = useState(current)
   const [text, setText] = useState(String(current))
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const c = COPY[kind]
   const cardClass = noCard ? '' : 'bg-white rounded-2xl p-5 shadow-sm'
 
@@ -41,14 +42,22 @@ export function SelfGoalSetting({ kind, current, locked, max, noCard = false }: 
   const options = kind === 'new' ? newGoalOptionsFor(max) : goalOptionsFor(max)
 
   const save = async (n: number) => {
+    const prev = value
     const clamped = Math.min(Math.max(Math.round(n), c.min), max)
-    setValue(clamped)
+    setValue(clamped)   // 楽観的更新
     setText(String(clamped))
     setSaving(true)
+    setError('')
     try {
       if (kind === 'new') await setMyNewPerDay(clamped)
       else await setMyDailyGoal(clamped)
       router.refresh()
+    } catch (e) {
+      // 保存失敗を握りつぶすと「変わったように見えて実は変わっていない」状態になるので、
+      // 値を元に戻してエラーを表示する
+      setValue(prev)
+      setText(String(prev))
+      setError(e instanceof Error ? e.message : '保存に失敗しました。時間をおいて再試行してください。')
     } finally {
       setSaving(false)
     }
@@ -68,6 +77,7 @@ export function SelfGoalSetting({ kind, current, locked, max, noCard = false }: 
         {c.title}{saving && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}
       </h2>
       <p className="text-xs text-gray-400 mb-3">{c.help}（{c.min}〜{max}語）</p>
+      {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
 
       <GoalPicker value={value} options={options} onChange={save} />
 
