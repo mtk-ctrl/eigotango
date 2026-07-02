@@ -626,9 +626,12 @@ export async function recordAnswer({
     console.error('[recordAnswer] failed to save session answer:', answerResult.error)
   }
 
-  // 出題された語は進捗が付くので「スキップ候補」一覧から自動的に外れる
-  revalidatePath('/words')
-  revalidatePath('/home')
+  // ここでは revalidatePath を呼ばない（絶対に追加しないこと）。
+  // Server Action 内で revalidatePath を呼ぶと、対象パスに関わらず「現在表示中の
+  // ページ」がサーバーで再実行されてクライアントへ再配信される。/study では
+  // getStudyWords が答えたばかりの語を除外した「1つずれた questions」を返すため、
+  // 結果表示中の画面が数秒後に勝手に次の単語の答えへ差し替わるバグの原因になっていた。
+  // /words・/home の一覧更新はセッション完了時（completeSession）にまとめて行う。
 }
 
 // セッション完了を記録 + 親へ通知（LINE / メール / 両方）。
@@ -654,6 +657,12 @@ export async function completeSession(studentId: string, sessionId: string) {
     correct_words: correctCount,
     completed_at: now,
   }).eq('id', sessionId)
+
+  // 回答で進捗が変わった一覧をセッション完了時にまとめて再検証する
+  // （recordAnswer で毎回呼ぶと結果表示中の /study が再描画されて画面が壊れるため、ここで行う）
+  revalidatePath('/home')
+  revalidatePath('/progress')
+  revalidatePath('/words')
 
   // 既に親へ通知済みなら二重送信しない（新規→復習の2回完了でも通知は1回）
   const { data: sessionRow } = await admin
