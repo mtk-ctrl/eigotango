@@ -47,7 +47,10 @@ export default async function StudyPage({
   }
 
   return (
+    // key: 対象の生徒が変わったら（自分⇔子の切替は同一ルートの searchParams 違いで
+    // コンポーネントが使い回されるため）マウントし直して学習中の state を確実にリセットする
     <StudyClient
+      key={studentId}
       questions={questions}
       sessionId={sessionId}
       studentId={studentId}

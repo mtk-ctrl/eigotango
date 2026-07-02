@@ -26,11 +26,20 @@ interface Props {
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ questions, sessionId, studentId, studentName, returnTo, recordsHref, showLogout, mode = 'new' }: Props) {
+export function StudyClient({ questions: questionsProp, sessionId, studentId, studentName, returnTo, recordsHref, showLogout, mode = 'new' }: Props) {
   const isReview = mode === 'review'
   const doneTitle = isReview ? '今日の復習完了！' : '今日の学習完了！'
   const emptyTitle = isReview ? '今日の復習はありません' : '新しい単語は今日のぶん完了！'
   const router = useRouter()
+
+  // 問題セットはマウント時のスナップショットに固定する（最重要）。
+  // Server Action が revalidatePath を呼ぶと /study がサーバーで再実行され、
+  // getStudyWords が「答えたばかりの語を除いた1つずれた questions」を prop として
+  // 再配信してくる。prop をそのまま使うと index/phase の state は残ったまま
+  // 中身だけ差し替わり、結果表示中の画面が数秒後に勝手に次の単語の答えに変わる。
+  // useState の初期値は初回レンダーの値だけを取り込むので、以降の再配信を無視できる。
+  const [questions] = useState(questionsProp)
+
   const [index, setIndex] = useState(0)
   const [phase, setPhase] = useState<Phase>('input')
   const [lastResult, setLastResult] = useState<SpellingResult | null>(null)
