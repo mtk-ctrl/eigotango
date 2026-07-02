@@ -81,13 +81,14 @@ export default async function SettingsPage() {
           </Link>
 
           <CollapsibleSettingsCard icon="📚" title="単語数・出題形式" summary={selfSummary}>
-            <SelfGoalSetting kind="new" current={newPerDay} locked={locked} max={max} />
-            <SelfGoalSetting kind="review" current={dailyGoal} locked={locked} max={max} />
+            <SelfGoalSetting kind="new" current={newPerDay} locked={locked} max={max} noCard />
+            <SelfGoalSetting kind="review" current={dailyGoal} locked={locked} max={max} noCard />
             <QuestionModePicker
               current={(profile?.question_mode as QuestionModeSetting) ?? 'auto'}
               locked={locked}
+              noCard
             />
-            <CopyHeaderSetting current={profile?.copy_header ?? null} />
+            <CopyHeaderSetting current={profile?.copy_header ?? null} noCard />
           </CollapsibleSettingsCard>
         </section>
 

@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation'
 import { setMyCopyHeader } from '@/app/actions/auth'
 
 // 単語リストをコピーするときに1行目へ付ける見出しを設定する。空＝なし。
-export function CopyHeaderSetting({ current }: { current: string | null }) {
+// noCard: true の場合、呼び出し側が既にカード枠を持つため枠なしで描画する（二重カード防止）。
+export function CopyHeaderSetting({ current, noCard = false }: { current: string | null; noCard?: boolean }) {
   const router = useRouter()
   const [enabled, setEnabled] = useState(!!current)
   const [text, setText] = useState(current ?? '今日の単語')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const cardClass = noCard ? '' : 'bg-white rounded-2xl p-5 shadow-sm'
 
   const save = async (header: string) => {
     setSaving(true)
@@ -31,7 +33,7 @@ export function CopyHeaderSetting({ current }: { current: string | null }) {
   }
 
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm">
+    <div className={cardClass}>
       <h2 className="font-bold text-gray-700 text-sm mb-1">
         コピー時の見出し
         {saving && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}

@@ -11,6 +11,7 @@ interface Props {
   current: number
   locked: boolean
   max: number
+  noCard?: boolean  // true: 呼び出し側が既にカード枠を持つ場合、二重カードを避けて枠なしで描画
 }
 
 const COPY = {
@@ -18,16 +19,17 @@ const COPY = {
   new: { title: '1日に学ぶ新しい単語', help: '毎日あたらしく覚える語数（0で新規なし）', unit: '語', min: 0 },
 } as const
 
-export function SelfGoalSetting({ kind, current, locked, max }: Props) {
+export function SelfGoalSetting({ kind, current, locked, max, noCard = false }: Props) {
   const router = useRouter()
   const [value, setValue] = useState(current)
   const [text, setText] = useState(String(current))
   const [saving, setSaving] = useState(false)
   const c = COPY[kind]
+  const cardClass = noCard ? '' : 'bg-white rounded-2xl p-5 shadow-sm'
 
   if (locked) {
     return (
-      <div className="bg-white rounded-2xl p-5 shadow-sm">
+      <div className={cardClass}>
         <h2 className="font-bold text-gray-700 text-sm mb-1">{c.title}</h2>
         <p className="text-sm text-gray-500">
           保護者が <span className="font-bold text-gray-700">{current}{c.unit}</span> に設定しています。
@@ -61,7 +63,7 @@ export function SelfGoalSetting({ kind, current, locked, max }: Props) {
   }
 
   return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm">
+    <div className={cardClass}>
       <h2 className="font-bold text-gray-700 text-sm mb-1">
         {c.title}{saving && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}
       </h2>
