@@ -185,17 +185,18 @@ export async function getStudentStreak(studentId?: string): Promise<number> {
 export interface DailyWord { id: string; word: string; meaning: string }
 export interface DailyWords {
   yesterday: DailyWord[]
-  today: DailyWord[]
+  todayDone: DailyWord[]   // 今日はじめて学習した語（「やったぶん」の積み上げ可視化）
+  today: DailyWord[]       // これから学ぶ語
   tomorrow: DailyWord[]
 }
 
 // 昨日・今日・明日の単語一覧（コピー用・プッシュ型カリキュラム）。
 // 設定の問題数 N を1日分として、易しい順（学年→難易度→アルファベット）に N 語ずつ配る:
-//   今日   = 次に学ぶ N 語（未学習の先頭）
-//   明日   = そのさらに次の N 語
-//   昨日   = 直近に学んだ N 語（first_learned_at 降順）
+//   今日     = 今日すでに学習した語（積み上げ） + 次に学ぶ N 語（未学習の先頭）
+//   明日     = そのさらに次の N 語
+//   昨日     = 前日に初めて学んだ語（first_learned_at 降順）
 export async function getDailyWords(studentId?: string): Promise<DailyWords> {
-  const empty: DailyWords = { yesterday: [], today: [], tomorrow: [] }
+  const empty: DailyWords = { yesterday: [], todayDone: [], today: [], tomorrow: [] }
   const sid = studentId ?? (await currentUserId())
   if (!sid) return empty
   await authorizeStudent(sid)
@@ -216,21 +217,30 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   const today = upcoming.slice(0, n).map(toDW)
   const tomorrow = upcoming.slice(n, n * 2).map(toDW)
 
-  // 昨日 = 「前日(JST)に初めて学習した」語（理解済みスキップは除く）。日付で厳密に区切る。
-  const { data: yRows } = await admin
+  // 昨日・今日に「初めて学習した」語（理解済みスキップは除く）を一括取得し、JST の日付境界で分割。
+  // 今日やったぶんを表示しないと、設定数を超えて学習しても画面上は「今日3語」のままで
+  // 積み上げが見えずモチベーションが下がる、という指摘への対応。
+  const todayStart = jstDayStartUtc(0)
+  const { data: learnedRows } = await admin
     .from('user_word_progress')
     .select('first_learned_at, words(id, word, meaning)')
     .eq('student_id', sid)
     .eq('known', false)
     .gte('first_learned_at', jstDayStartUtc(-1))
-    .lt('first_learned_at', jstDayStartUtc(0))
+    .lt('first_learned_at', jstDayStartUtc(1))
     .order('first_learned_at', { ascending: false })
-  const yesterday: DailyWord[] = (yRows ?? [])
-    .map(r => r.words as unknown as { id: string; word: string; meaning: string } | null)
-    .filter((w): w is { id: string; word: string; meaning: string } => Boolean(w))
-    .map(toDW)
+  const todayStartMs = new Date(todayStart).getTime()
+  const yesterday: DailyWord[] = []
+  const todayDone: DailyWord[] = []
+  for (const r of learnedRows ?? []) {
+    const w = r.words as unknown as { id: string; word: string; meaning: string } | null
+    if (!w) continue
+    // PostgREST は +00:00 形式、jstDayStartUtc は Z 形式を返すため文字列比較は使わない
+    if (new Date(r.first_learned_at as string).getTime() < todayStartMs) yesterday.push(toDW(w))
+    else todayDone.push(toDW(w))
+  }
 
-  return { yesterday, today, tomorrow }
+  return { yesterday, todayDone, today, tomorrow }
 }
 
 // 今日の復習(アクティブリコール)対象の単語一覧（コピー用）。

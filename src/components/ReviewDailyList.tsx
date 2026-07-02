@@ -5,7 +5,12 @@ import { copyText } from '@/lib/clipboard'
 import type { DailyWord } from '@/app/actions/study'
 
 // 今日の復習(アクティブリコール)対象の単語一覧。コピーできる（先頭に見出しを付けられる）。
-export function ReviewDailyList({ words, copyHeader }: { words: DailyWord[]; copyHeader?: string | null }) {
+// title で誰のリストかを明示できる（親ホームで自分/子どもを区別するため）。
+export function ReviewDailyList({ words, copyHeader, title = '🔁 復習する単語' }: {
+  words: DailyWord[]
+  copyHeader?: string | null
+  title?: string
+}) {
   const [copied, setCopied] = useState<'ok' | 'ng' | null>(null)
 
   const copy = async () => {
@@ -19,7 +24,7 @@ export function ReviewDailyList({ words, copyHeader }: { words: DailyWord[]; cop
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm">
-      <h2 className="mb-1 text-sm font-bold text-gray-700">🔁 復習する単語</h2>
+      <h2 className="mb-1 text-sm font-bold text-gray-700">{title}</h2>
       <p className="mb-3 text-xs text-gray-400">今日 覚え直す単語です（期限が来たもの）。</p>
 
       {words.length === 0 ? (
