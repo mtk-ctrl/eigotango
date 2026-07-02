@@ -58,6 +58,7 @@ export default async function StudyPage({
       studentName={studentName}
       returnTo={returnTo}
       recordsHref={recordsHref}
+      continueHref={child && child !== user.id ? `/study?child=${child}` : '/study'}
       showLogout={showLogout}
     />
   )

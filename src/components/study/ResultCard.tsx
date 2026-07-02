@@ -7,6 +7,7 @@ import { SpeakButton } from './SpeakButton'
 interface Props {
   question: StudyQuestion
   result: SpellingResult
+  combo?: number   // 連続正解数（2以上でバッジ表示）
   onNext: () => void
   isLast: boolean
   onMarkKnown?: () => void   // 正解時のみ。「もう覚えてる」で今後の出題対象から外す
@@ -19,12 +20,15 @@ const CONFIG = {
   wrong:   { bg: 'bg-red-50', border: 'border-red-200', label: '不正解', emoji: '❌' },
 }
 
+// 正解時の褒め言葉（毎回同じ「正解！」だと単調なのでランダムに変える）
+const PRAISE = ['正解！', 'すごい！', 'ナイス！', 'かんぺき！', 'その調子！', 'やるね！']
+
 // 結果カード表示直後はボタン操作を受け付けない時間（ミリ秒）。
 // 回答送信で使われたタップ/Enter のゴーストイベントが、直後に同じ位置へ描画された
 // 「次へ」に命中して勝手に次の問題へ進んでしまうのを防ぐ。
 const IGNORE_TAPS_AFTER_MOUNT_MS = 300
 
-export function ResultCard({ question, result, onNext, isLast, onMarkKnown, marking }: Props) {
+export function ResultCard({ question, result, combo = 0, onNext, isLast, onMarkKnown, marking }: Props) {
   const c = CONFIG[result.type]
   const { word, mode } = question
   // フェーズが input に戻るとこのコンポーネントはアンマウントされるため、
@@ -34,6 +38,9 @@ export function ResultCard({ question, result, onNext, isLast, onMarkKnown, mark
     if (Date.now() - mountedAtRef.current < IGNORE_TAPS_AFTER_MOUNT_MS) return
     fn?.()
   }
+  // 褒め言葉はマウント時に1回だけ選ぶ（再レンダーで変わらないように）
+  const praiseRef = useRef(PRAISE[Math.floor(Math.random() * PRAISE.length)])
+  const label = result.type === 'correct' ? praiseRef.current : c.label
 
   // 日本語を答えるモードは正解＝日本語、英語を答えるモードは正解＝英語
   const isJaAnswer = mode === 'en_to_ja_choice'
@@ -47,7 +54,10 @@ export function ResultCard({ question, result, onNext, isLast, onMarkKnown, mark
     <div className="flex flex-col gap-4">
       <div className={`${c.bg} border ${c.border} rounded-2xl p-6 text-center`}>
         <p className="text-4xl mb-2">{c.emoji}</p>
-        <p className="font-bold text-xl mb-3">{c.label}</p>
+        <p className={`font-bold text-xl ${result.type !== 'wrong' && combo >= 2 ? 'mb-1' : 'mb-3'}`}>{label}</p>
+        {result.type !== 'wrong' && combo >= 2 && (
+          <p className="mb-3 text-sm font-bold text-orange-500">🔥 {combo}れんぞく正解！</p>
+        )}
 
         {result.type !== 'correct' && result.input && (
           <p className="text-gray-500 text-sm mb-2">

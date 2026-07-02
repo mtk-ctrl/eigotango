@@ -20,13 +20,14 @@ interface Props {
   studentName?: string   // 親が子の代わりに学習しているとき表示
   returnTo: string       // 「やめる」「ホームへ戻る」の戻り先
   recordsHref: string    // 学習記録（進捗）へのリンク
+  continueHref?: string  // 完了後に「もっとやる」で開く新規学習の URL（/study or /study?child=）
   showLogout: boolean    // 本人ログイン時のみログアウトを出す
   mode?: 'new' | 'review'  // 文言の出し分け（新規 / 復習）
 }
 
 type Phase = 'input' | 'result' | 'complete'
 
-export function StudyClient({ questions: questionsProp, sessionId, studentId, studentName, returnTo, recordsHref, showLogout, mode = 'new' }: Props) {
+export function StudyClient({ questions: questionsProp, sessionId, studentId, studentName, returnTo, recordsHref, continueHref, showLogout, mode = 'new' }: Props) {
   const isReview = mode === 'review'
   const doneTitle = isReview ? '今日の復習完了！' : '今日の学習完了！'
   const emptyTitle = isReview ? '今日の復習はありません' : '新しい単語は今日のぶん完了！'
@@ -51,6 +52,9 @@ export function StudyClient({ questions: questionsProp, sessionId, studentId, st
   const [retryQueue, setRetryQueue] = useState<StudyQuestion[]>([])
   const [retryIndex, setRetryIndex] = useState(0)
   const [inRetry, setInRetry] = useState(false)
+
+  // 連続正解コンボ（まちがえると0に戻る）。ノッてきた感を可視化するモチベーション演出
+  const [combo, setCombo] = useState(0)
 
   // 連打・二重タップで回答が二重記録されたり問題が飛んだりしないよう、
   // フェーズ遷移をレンダリングを待たず同期的にガードする
@@ -87,6 +91,7 @@ export function StudyClient({ questions: questionsProp, sessionId, studentId, st
     const { type, quality } = checkAnswer(current, input)
     setLastResult({ type, input })
     setPhaseSafe('result')
+    setCombo(c => (type === 'wrong' ? 0 : c + 1))
     if (type === 'wrong') {
       // まちがえた問題は後ろに積み直す（まちがい直し中も、正解するまで繰り返す）
       setRetryQueue(prev => [...prev, current])
@@ -229,6 +234,17 @@ export function StudyClient({ questions: questionsProp, sessionId, studentId, st
         )}
 
         <div className="flex flex-col gap-3 w-full max-w-xs">
+          {/* もっとやる: /study は開くたびに次の未学習バッチを出すので、設定数を超えて
+              何周でも先へ進める。同一URLへの SPA 遷移だと固定した問題セットが
+              リセットされないため、location でフル再読み込みして確実に次の問題を出す */}
+          {continueHref && (
+            <button
+              onClick={() => window.location.assign(continueHref)}
+              className="py-4 bg-orange-500 text-white rounded-xl text-center text-lg font-bold active:scale-95 transition-transform"
+            >
+              {isReview ? '📚 新しい単語もやる！' : `🚀 もう${questions.length}語 おぼえる！`}
+            </button>
+          )}
           <Link href={recordsHref} className="py-3 bg-green-500 text-white rounded-xl text-center font-bold">
             学習記録を見る
           </Link>
@@ -284,6 +300,7 @@ export function StudyClient({ questions: questionsProp, sessionId, studentId, st
         <ResultCard
           question={current}
           result={lastResult}
+          combo={combo}
           onNext={handleNext}
           isLast={isLast}
           onMarkKnown={lastResult.type === 'correct' && !inRetry ? handleMarkKnown : undefined}
