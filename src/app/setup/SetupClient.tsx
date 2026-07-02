@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { unstable_rethrow } from 'next/navigation'
 import { setUserRole } from '@/app/actions/auth'
 
 export function SetupClient() {
@@ -13,6 +14,9 @@ export function SetupClient() {
       try {
         await setUserRole(role)
       } catch (e) {
+        // setUserRole は成功時に redirect() する＝NEXT_REDIRECT が throw される。
+        // これを catch で握るとリダイレクトが壊れるため、フレームワーク内部エラーは再スローする
+        unstable_rethrow(e)
         // 初回設定はここで詰まると先へ進めないので、失敗を必ず表示して再試行できるようにする
         setError(e instanceof Error ? e.message : '設定に失敗しました。もう一度お試しください。')
       }

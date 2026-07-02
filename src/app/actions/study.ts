@@ -221,7 +221,7 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
   // 今日やったぶんを表示しないと、設定数を超えて学習しても画面上は「今日3語」のままで
   // 積み上げが見えずモチベーションが下がる、という指摘への対応。
   const todayStart = jstDayStartUtc(0)
-  const { data: learnedRows } = await admin
+  const { data: learnedRows, error: learnedErr } = await admin
     .from('user_word_progress')
     .select('first_learned_at, words(id, word, meaning)')
     .eq('student_id', sid)
@@ -229,6 +229,8 @@ export async function getDailyWords(studentId?: string): Promise<DailyWords> {
     .gte('first_learned_at', jstDayStartUtc(-1))
     .lt('first_learned_at', jstDayStartUtc(1))
     .order('first_learned_at', { ascending: false })
+  // 握りつぶすと「学習した単語0件」に見えて不具合検知が困難になるため必ず surface する
+  if (learnedErr) throw new Error(`failed to load learned words: ${learnedErr.message}`)
   const todayStartMs = new Date(todayStart).getTime()
   const yesterday: DailyWord[] = []
   const todayDone: DailyWord[] = []
