@@ -1,3 +1,6 @@
+'use client'
+
+import { useRef } from 'react'
 import type { StudyQuestion, SpellingResult } from '@/types/api'
 import { SpeakButton } from './SpeakButton'
 
@@ -16,9 +19,21 @@ const CONFIG = {
   wrong:   { bg: 'bg-red-50', border: 'border-red-200', label: '不正解', emoji: '❌' },
 }
 
+// 結果カード表示直後はボタン操作を受け付けない時間（ミリ秒）。
+// 回答送信で使われたタップ/Enter のゴーストイベントが、直後に同じ位置へ描画された
+// 「次へ」に命中して勝手に次の問題へ進んでしまうのを防ぐ。
+const IGNORE_TAPS_AFTER_MOUNT_MS = 300
+
 export function ResultCard({ question, result, onNext, isLast, onMarkKnown, marking }: Props) {
   const c = CONFIG[result.type]
   const { word, mode } = question
+  // フェーズが input に戻るとこのコンポーネントはアンマウントされるため、
+  // mountedAt は「この結果カードが表示された時刻」になる
+  const mountedAtRef = useRef(Date.now())
+  const guarded = (fn?: () => void) => () => {
+    if (Date.now() - mountedAtRef.current < IGNORE_TAPS_AFTER_MOUNT_MS) return
+    fn?.()
+  }
 
   // 日本語を答えるモードは正解＝日本語、英語を答えるモードは正解＝英語
   const isJaAnswer = mode === 'en_to_ja_choice'
@@ -67,7 +82,8 @@ export function ResultCard({ question, result, onNext, isLast, onMarkKnown, mark
       )}
 
       <button
-        onClick={onNext}
+        type="button"
+        onClick={guarded(onNext)}
         disabled={marking}
         className="w-full py-4 bg-gray-900 text-white rounded-xl text-lg font-bold active:scale-95 transition-transform disabled:opacity-50"
       >
@@ -77,7 +93,8 @@ export function ResultCard({ question, result, onNext, isLast, onMarkKnown, mark
       {/* 正解した語は「もう覚えてる」で今後アクティブリコールの対象から外せる */}
       {result.type === 'correct' && onMarkKnown && (
         <button
-          onClick={onMarkKnown}
+          type="button"
+          onClick={guarded(onMarkKnown)}
           disabled={marking}
           className="w-full py-3 bg-white text-gray-600 rounded-xl text-sm font-bold border-2 border-gray-200 active:scale-95 transition-transform disabled:opacity-50"
         >
