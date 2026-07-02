@@ -51,6 +51,18 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
     setPhase(p)
   }, [])
 
+  // 画面遷移の最短間隔ガード。Android の IME が Enter を遅延して複数配信したり、
+  // タップのゴーストクリックが直後に描画された「次へ」ボタンへ命中したりすると、
+  // フェーズガードだけでは「回答→次へ→次の回答」と正規ルートを一気に通り抜けて
+  // しまう（＝次の問題の答えが勝手に表示される）。連続遷移を時間で遮断する。
+  const lastTransitionRef = useRef(0)
+  const passTransitionGuard = useCallback(() => {
+    const now = Date.now()
+    if (now - lastTransitionRef.current < 400) return false
+    lastTransitionRef.current = now
+    return true
+  }, [])
+
   const current = inRetry ? retryQueue[retryIndex] : questions[index]
   // 本編の最後でもまちがい直しが残っていれば「次へ」（完了はまちがい直しの後）
   const isLast = inRetry
@@ -62,6 +74,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
 
   const handleSubmit = useCallback(async (input: string) => {
     if (!current || phaseRef.current !== 'input') return
+    if (!passTransitionGuard()) return
     const { type, quality } = checkAnswer(current, input)
     setLastResult({ type, input })
     setPhaseSafe('result')
@@ -78,10 +91,11 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
       // 結果表示は維持しつつ、記録漏れの可能性をユーザーに知らせる
       alert('回答の保存に失敗しました。通信環境を確認してください。この単語は記録されていない可能性があります。')
     }
-  }, [current, inRetry, sessionId, studentId, setPhaseSafe])
+  }, [current, inRetry, sessionId, studentId, setPhaseSafe, passTransitionGuard])
 
   const handleNext = useCallback(async () => {
     if (phaseRef.current !== 'result') return
+    if (!passTransitionGuard()) return
 
     if (!inRetry) {
       if (index + 1 < questions.length) {
@@ -120,7 +134,7 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
     } else {
       setPhaseSafe('complete')
     }
-  }, [inRetry, index, questions.length, retryIndex, retryQueue.length, sessionId, studentId, setPhaseSafe])
+  }, [inRetry, index, questions.length, retryIndex, retryQueue.length, sessionId, studentId, setPhaseSafe, passTransitionGuard])
 
   // 正解した語を「もう覚えてる」にして今後の出題対象から外し、次へ進む
   const handleMarkKnown = useCallback(async () => {
@@ -134,6 +148,8 @@ export function StudyClient({ questions, sessionId, studentId, studentName, retu
       setMarking(false)
       return
     }
+    // ここまで来たら意図的な操作＋保存済みなので、連続遷移ガードに阻まれず必ず次へ進める
+    lastTransitionRef.current = 0
     await handleNext()
   }, [current, marking, studentId, handleNext])
 
