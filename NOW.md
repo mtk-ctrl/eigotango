@@ -40,8 +40,8 @@
 
 | 日付 | 内容 |
 |---|---|
+| 2026-07-02 | レビュー指摘対応＋設定保存の未処理エラー解消: StudyClientのkeyをstudentId-sessionIdに（日またぎでも確実に再マウント）。CollapsibleSettingsCard内の設定項目に区切り線。SelfGoalSetting/QuestionModePicker/CopyHeaderSettingの保存失敗時に値を戻してエラー表示（従来は未処理例外＋画面と実データが黙って食い違い）。SetupClientの初回ロール選択失敗時も無反応→エラー表示に |
 | 2026-07-02 | 【真因修正】結果表示中に画面が勝手に次の単語の答えへ差し替わるバグの根本原因を特定・修正。recordAnswerが毎回呼んでいたrevalidatePathがServer Actionの仕様で表示中の/studyをサーバー再実行→1つずれたquestionsを再配信し、state残存のまま中身だけ差し替わっていた（イベント由来でないため過去2回のガード修正では直らず）。revalidateはcompleteSessionへ移動し、StudyClientは問題セットをマウント時スナップショットに固定＋key={studentId}で生徒切替時リセット |
 | 2026-07-02 | 【バグ再修正】学習画面で回答直後に勝手に次の問題の答えが表示される問題を多層ガードで遮断。前回のIME対策では塞げなかった「送信後に届く遅延イベントが直後に描画された次へボタンを正規に押す」経路を、フェーズ遷移の最短間隔400ms・結果カード表示直後300ms無効・入力表示直後250ms無効の時間ガードで遮断 |
 | 2026-07-02 | せってい画面の二重カード表示を解消。SelfGoalSetting/QuestionModePicker/CopyHeaderSettingが各々カード枠を持ったままCollapsibleSettingsCardの中に配置され、白カードの中に白カードが4つ入れ子になっていた不具合を修正（各コンポーネントに noCard prop を追加） |
-| 2026-07-01 | せってい画面: お子さまの「編集」ボタンをテキストリンクから大きなボタンに変更。保護者/生徒本人の学習設定（新規語数・復習上限・出題形式・コピー見出し）もお子さまの設定カードと同じ「要約表示＋編集ボタンで開く」形式に統一（CollapsibleSettingsCard新設）。従来は自分の設定だけ常に全展開でお子さまの折りたたみ表示と食い違い分かりにくかった |
 

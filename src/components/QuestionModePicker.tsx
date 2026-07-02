@@ -16,6 +16,7 @@ export function QuestionModePicker({ current, locked, noCard = false }: Props) {
   const router = useRouter()
   const [value, setValue] = useState<QuestionModeSetting>(current)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
   const cardClass = noCard ? '' : 'bg-white rounded-2xl p-5 shadow-sm'
 
   if (locked) {
@@ -31,11 +32,17 @@ export function QuestionModePicker({ current, locked, noCard = false }: Props) {
   }
 
   const save = async (mode: QuestionModeSetting) => {
-    setValue(mode)
+    const prev = value
+    setValue(mode)   // 楽観的更新
     setSaving(true)
+    setError('')
     try {
       await setMyQuestionMode(mode)
       router.refresh()
+    } catch (e) {
+      // 保存失敗時は選択を元に戻してエラーを表示（黙って食い違わせない）
+      setValue(prev)
+      setError(e instanceof Error ? e.message : '保存に失敗しました。時間をおいて再試行してください。')
     } finally {
       setSaving(false)
     }
@@ -47,6 +54,7 @@ export function QuestionModePicker({ current, locked, noCard = false }: Props) {
         出題形式{saving && <span className="text-xs text-gray-400 font-normal">（保存中...）</span>}
       </h2>
       <p className="text-xs text-gray-400 mb-3">クイズの形式を選べます。熟語は自動的に4択になります。</p>
+      {error && <p className="text-sm text-red-500 mb-2">{error}</p>}
       <QuestionModeChoices value={value} onChange={save} />
     </div>
   )
